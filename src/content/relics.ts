@@ -82,8 +82,8 @@ export const RELICS = [
     badge: "DUR",
     tier: "uncommon",
     triggers: [],
-    modifiers: [{ kind: "firstHazardBlocked" }],
-    description: "전투마다 첫 번째 위험 상호작용을 막는다.",
+    modifiers: [{ kind: "firstHazardBlocked" }, { kind: "extraReturn" }],
+    description: "전투마다 첫 번째 위험 상호작용을 막는다. 처방 반납을 턴마다 한 번 더 할 수 있다.",
     flavor: "\"병용 금기 약물입니다. 계속하시겠습니까?\"",
   },
   {

@@ -211,3 +211,12 @@ describe("처방 반납", () => {
     expect(cardDef("ceftriaxone").zone).toBe("formulary");
   });
 });
+
+describe("처방 반납 유물", () => {
+  it("DUR 시스템이 있으면 턴마다 두 번 반납할 수 있다", () => {
+    let s = makeCombat({ hand: ["ceftriaxone", "salbutamol"], relics: ["dur_system"], enemies: [{ disease: "pyelo", variant: "ecoli" }] });
+    s = act(s, { type: "return_card", cardUid: s.combat!.hand.find((h) => h.cardId === "ceftriaxone")!.uid }).state;
+    s = act(s, { type: "return_card", cardUid: s.combat!.hand.find((h) => h.cardId === "salbutamol")!.uid }).state;
+    expect(s.run.stats.returns).toBe(2);
+  });
+});

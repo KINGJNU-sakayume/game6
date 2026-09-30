@@ -7,6 +7,8 @@ import { setSoundEnabled, sfx } from "./sfx";
 installContent(CONTENT);
 
 const SAVE_KEY = "orderset.save";
+/** 저장 파일 형식. 3: 감별 진단·처방집 모델 (2 이하의 저장은 규칙이 달라 이어 하지 않는다) */
+const SAVE_VERSION = 3;
 const SETTINGS_KEY = "orderset.settings";
 
 export type AnimSpeed = "normal" | "fast" | "off";
@@ -64,7 +66,7 @@ function safeRemove(key: string): void {
 /** 없는 카드·유물 ID를 대체한다 (design §3.9) */
 function migrate(state: GameState): { state: GameState; warnings: string[] } {
   const warnings: string[] = [];
-  for (const c of state.run.deck) {
+  for (const c of [...state.run.deck, ...(state.run.formulary ?? [])]) {
     if (!hasCard(c.cardId)) {
       warnings.push(`카드 ${c.cardId}`);
       c.cardId = "obsolete_card";
@@ -116,7 +118,7 @@ class Controller {
     if (!raw) return false;
     try {
       const f = JSON.parse(raw) as SaveFile;
-      return f.schemaVersion === 2 && f.state.phase !== "gameover" && f.state.phase !== "victory";
+      return f.schemaVersion === SAVE_VERSION && f.state.phase !== "gameover" && f.state.phase !== "victory";
     } catch {
       return false;
     }
@@ -146,7 +148,7 @@ class Controller {
     if (!raw) return false;
     try {
       const f = JSON.parse(raw) as SaveFile;
-      if (f.schemaVersion !== 2) return false;
+      if (f.schemaVersion !== SAVE_VERSION) return false;
       const { state, warnings } = migrate(f.state);
       this.log = f.actionLog ?? [];
       this.emit({ state, fx: [], lastError: warnings.length ? `저장 파일의 일부 항목이 사라져 대체했다: ${warnings.join(", ")}` : undefined });
@@ -190,7 +192,7 @@ class Controller {
   }
 
   private persist(state: GameState): void {
-    const file: SaveFile = { schemaVersion: 2, state, actionLog: this.log };
+    const file: SaveFile = { schemaVersion: SAVE_VERSION, state, actionLog: this.log };
     safeSet(SAVE_KEY, JSON.stringify(file));
   }
 

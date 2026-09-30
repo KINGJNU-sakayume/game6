@@ -28,7 +28,7 @@ export const ENCOUNTERS = [
   { id: "n2_palp", act: 2, pool: "normal", problems: [{ presentation: "p_palpitation", hpPct: 125, atkPct: 140 }], title: "모니터 알람" },
   { id: "el2_dyspnea", act: 2, pool: "elite", problems: [{ presentation: "p_sudden_dyspnea", atkPct: 130 }], title: "갑자기 숨을 못 쉰다" },
   { id: "el2_abd", act: 2, pool: "elite", problems: [{ presentation: "p_severe_abd", hpPct: 120, atkPct: 170 }], title: "등까지 뻗치는 통증" },
-  { id: "g2_ugib", act: 2, pool: "gate", problems: [{ presentation: "p_hematemesis" }], title: "주 진단" },
+  { id: "g2_ugib", act: 2, pool: "gate", problems: [{ presentation: "p_hematemesis", hpPct: 110, atkPct: 140 }], title: "주 진단" },
   // 3막 중환자실
   { id: "e3_oliguria", act: 3, pool: "easy", problems: [{ presentation: "p_oliguria", hpPct: 85 }], title: "소변 주머니가 비어 있다" },
   { id: "e3_fever", act: 3, pool: "easy", problems: [{ presentation: "p_icu_fever", hpPct: 85 }], title: "열이 다시 오른다" },
