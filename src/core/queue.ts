@@ -2,7 +2,7 @@
 import { cardDef, db, diseaseDef, relicDef, statusDef } from "./registry";
 import { addDiagnosis, confirmEnemy, findMove, phaseDef } from "./disease";
 import { calcEnemyAttack, calcPlayerDamage } from "./damage";
-import { administer, diseaseLabel, emitSideEffects, endDrugs, harmfulResponse, tickDrugs } from "./drugs";
+import { administer, diseaseLabel, emitPersistentOnly, emitSideEffects, endDrugs, harmfulResponse, tickDrugs } from "./drugs";
 import { addCardTo, addGeneratedCard, createInstance, drawCards, exhaustInstance, matchesFilter, pileOf, removeFromPiles } from "./cards";
 import { planIntents, replanAll } from "./enemy-ai";
 import { fire } from "./triggers";
@@ -40,6 +40,10 @@ export function checkCombatOver(state: GameState): boolean {
     c.over = "victory";
   }
   if (c.over) {
+    if (c.over === "victory") {
+      // 치료로 전투가 끝나도 이미 투여한 약의 지속 부작용은 남는다
+      for (const q of c.queue) if (q.op.op === "emit_side_effects") emitPersistentOnly(state, q.op.cardUid);
+    }
     c.queue = [];
     state.pending = undefined;
     return true;
@@ -205,7 +209,15 @@ function execute(state: GameState, item: QueuedEffect): void {
       execDamage(state, op, ctx);
       return;
     case "lose_vitality": {
-      const cause = ctx.owner.kind === "enemy" ? findEnemy(c, ctx.owner.id)?.diseaseId : undefined;
+      const o = ctx.owner;
+      const cause =
+        o.kind === "enemy"
+          ? findEnemy(c, o.id)?.diseaseId
+          : o.kind === "side_effect"
+            ? `se:${o.cardId ?? ""}`
+            : o.kind === "status"
+              ? `status:${o.id}`
+              : undefined;
       loseVitality(state, evalValue(state, ctx, op.amount), cause);
       return;
     }
@@ -574,7 +586,7 @@ function runPhase(state: GameState, name: TurnPhase, enemyUid?: string): void {
           log(c, "warn", "출혈 경향: 활력 −2");
         } else removeStatus(c.patientStatuses, "bleeding_tendency", "all");
       }
-      if (ops.length) enqueueFront(state, ops, { owner: { kind: "status", id: "patient" } });
+      if (ops.length) enqueueFront(state, ops, { owner: { kind: "status", id: hypo > 0 && !drugTagActive(state, "vasopressor") ? "hypotension" : "bleeding_tendency" } });
       return;
     }
     case "enemy_passive_turn_start":

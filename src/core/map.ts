@@ -92,14 +92,9 @@ function assignTypes(rng: RngState, nodes: Record<string, MapNode>, act: 1 | 2 |
     else if (n.floor === treasureFloor(act)) n.type = "treasure";
     else if (n.floor === L) n.type = "rest";
     else {
-      let chosen: NodeType = "battle";
-      for (let attempt = 0; attempt < 20; attempt++) {
-        const t = pickWeighted(rng, WEIGHTS);
-        if (violates(nodes, n, t, act, L, assigned)) continue;
-        chosen = t;
-        break;
-      }
-      n.type = chosen;
+      // 제약을 만족하는 종류 중에서 가중 추첨한다. 하나도 없으면 전투.
+      const allowed = WEIGHTS.filter(([t]) => !violates(nodes, n, t, act, L, assigned));
+      n.type = allowed.length ? pickWeighted(rng, allowed) : "battle";
     }
     assigned.add(n.id);
   }

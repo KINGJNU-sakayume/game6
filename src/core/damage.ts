@@ -183,7 +183,7 @@ export function calcEnemyAttack(
     a += immuno * 2;
   }
   const d1 = Math.max(0, base + a);
-  const mults: number[] = [];
+  const mults: number[] = [enemy.atkPct ?? 100];
   mults.push(statusStacks(c.patientStatuses, "vulnerable") > 0 ? 150 : 100);
   mults.push(statusStacks(enemy.statuses, "weak") > 0 ? 75 : 100);
   const ctx: EffectCtx = { owner: { kind: "enemy", id: enemy.uid } };

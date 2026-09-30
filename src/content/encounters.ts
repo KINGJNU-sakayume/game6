@@ -1,7 +1,8 @@
 // 인카운터. design.md §5.6
 import type { EncounterDef } from "../core/types";
 
-const P = 65; // 두 질병 인카운터의 중증도 비율
+const P = 60; // 두 질병 인카운터의 중증도 비율
+const A = 60; // 두 질병 인카운터의 공격 비율
 
 export const ENCOUNTERS = [
   // 1막
@@ -12,8 +13,8 @@ export const ENCOUNTERS = [
   { id: "n1_cap", act: 1, pool: "normal", enemies: [{ disease: "cap" }], title: "기침과 열" },
   { id: "n1_pyelo", act: 1, pool: "normal", enemies: [{ disease: "pyelo" }], title: "오한이 온다" },
   { id: "n1_anaphylaxis", act: 1, pool: "normal", enemies: [{ disease: "anaphylaxis" }], title: "CT실에서 급히 호출" },
-  { id: "n1_cap_asthma", act: 1, pool: "normal", enemies: [{ disease: "cap", hpPct: P }, { disease: "asthma", hpPct: P }], title: "열나고 숨차다" },
-  { id: "n1_abdomen", act: 1, pool: "normal", enemies: [{ disease: "appendicitis", hpPct: P }, { disease: "gastroenteritis", hpPct: P }], title: "복통 감별" },
+  { id: "n1_cap_asthma", act: 1, pool: "normal", enemies: [{ disease: "cap", hpPct: P, atkPct: A }, { disease: "asthma", hpPct: P, atkPct: A }], title: "열나고 숨차다" },
+  { id: "n1_abdomen", act: 1, pool: "normal", enemies: [{ disease: "appendicitis", hpPct: P, atkPct: A }, { disease: "gastroenteritis", hpPct: P, atkPct: A }], title: "복통 감별" },
   { id: "el1_stemi", act: 1, pool: "elite", enemies: [{ disease: "stemi" }], title: "식은땀을 흘린다" },
   { id: "el1_stroke", act: 1, pool: "elite", enemies: [{ disease: "stroke" }], title: "말이 어눌해졌다" },
   { id: "b1_dka", act: 1, pool: "boss", enemies: [{ disease: "dka" }], title: "주 진단" },
@@ -26,8 +27,8 @@ export const ENCOUNTERS = [
   { id: "n2_he", act: 2, pool: "normal", enemies: [{ disease: "he" }], title: "대답이 엉뚱하다" },
   { id: "n2_cdi", act: 2, pool: "normal", enemies: [{ disease: "cdi" }], title: "설사가 멈추지 않는다" },
   { id: "n2_af", act: 2, pool: "normal", enemies: [{ disease: "af" }], title: "모니터 알람" },
-  { id: "n2_leg", act: 2, pool: "normal", enemies: [{ disease: "cellulitis", hpPct: P }, { disease: "dvt", hpPct: P }], title: "다리 부종 감별" },
-  { id: "n2_mental", act: 2, pool: "normal", enemies: [{ disease: "he", hpPct: P }, { disease: "delirium", hpPct: P }], title: "의식 변화 감별" },
+  { id: "n2_leg", act: 2, pool: "normal", enemies: [{ disease: "cellulitis", hpPct: P, atkPct: A }, { disease: "dvt", hpPct: P, atkPct: A }], title: "다리 부종 감별" },
+  { id: "n2_mental", act: 2, pool: "normal", enemies: [{ disease: "he", hpPct: P, atkPct: A }, { disease: "delirium", hpPct: P, atkPct: A }], title: "의식 변화 감별" },
   { id: "el2_pe", act: 2, pool: "elite", enemies: [{ disease: "pe" }], title: "갑자기 숨을 못 쉰다" },
   { id: "el2_pancreatitis", act: 2, pool: "elite", enemies: [{ disease: "pancreatitis" }], title: "등까지 뻗치는 통증" },
   { id: "g2_ugib", act: 2, pool: "gate", enemies: [{ disease: "ugib" }], title: "주 진단" },
@@ -39,8 +40,8 @@ export const ENCOUNTERS = [
   { id: "n3_ards", act: 3, pool: "normal", enemies: [{ disease: "ards" }], title: "산소포화도가 오르지 않는다" },
   { id: "n3_dic", act: 3, pool: "normal", enemies: [{ disease: "dic" }], title: "피가 멎지 않는다" },
   { id: "n3_clabsi", act: 3, pool: "normal", enemies: [{ disease: "clabsi" }], title: "혈액배양 양성" },
-  { id: "n3_vap_aki", act: 3, pool: "normal", enemies: [{ disease: "vap", hpPct: P }, { disease: "aki", hpPct: P }], title: "폐렴과 신장" },
-  { id: "n3_ards_dic", act: 3, pool: "normal", enemies: [{ disease: "ards", hpPct: P }, { disease: "dic", hpPct: P }], title: "다장기 손상" },
+  { id: "n3_vap_aki", act: 3, pool: "normal", enemies: [{ disease: "vap", hpPct: P, atkPct: A }, { disease: "aki", hpPct: P, atkPct: A }], title: "폐렴과 신장" },
+  { id: "n3_ards_dic", act: 3, pool: "normal", enemies: [{ disease: "ards", hpPct: P, atkPct: A }, { disease: "dic", hpPct: P, atkPct: A }], title: "다장기 손상" },
   { id: "el3_tamponade", act: 3, pool: "elite", enemies: [{ disease: "tamponade" }], title: "혈압이 떨어진다" },
   { id: "el3_ptx", act: 3, pool: "elite", enemies: [{ disease: "tension_ptx" }], title: "기도압 경보" },
   { id: "b3_septic", act: 3, pool: "boss", enemies: [{ disease: "septic_shock" }], title: "주 진단" },

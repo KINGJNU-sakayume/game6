@@ -1,6 +1,7 @@
 // 탐욕 봇: 한 턴 안의 카드 사용 순서를 깊이 우선으로 탐색한다. design.md D8
 // 탐색은 지도를 떼어 낸 가벼운 상태로 한다 (R38).
 import { cardBudget, cardDef, db, diseaseDef, eventDef, legalActions, step, visibleEnemyInfo } from "../../core";
+import { gradeFor } from "../../core/damage";
 import { deriveStream, randInt } from "../../core/rng";
 import type { Action, CardId, GameState, MapState, RngState } from "../../core";
 
@@ -103,19 +104,39 @@ export class GreedyBot {
     return best.first;
   }
 
+  private usefulCache = new Map<string, number>();
+
+  /** 이 카드가 현재 막 질병 중 몇 %에 듣는지 (변이 중 하나라도 들으면 포함) */
+  private usefulness(id: CardId, act: number): number {
+    const key = `${id}:${act}`;
+    const hit = this.usefulCache.get(key);
+    if (hit !== undefined) return hit;
+    const def = cardDef(id);
+    const diseases = db().diseases.filter((d) => d.act === act);
+    let n = 0;
+    for (const d of diseases) {
+      const variants = d.variants?.length ? d.variants.map((v) => v.id) : [undefined];
+      const ok = variants.some((vid) => {
+        const e = { uid: "x", diseaseId: d.id, severity: 1, maxSeverity: 1, stability: 0, statuses: [], knowledge: 0 as const, diagnosisPoints: 0, acquiredResistance: {}, resistanceFraction: 0, phase: 0, ai: { history: [], planned: [], planIndex: 0, usedOnce: [] }, countdowns: [], revealNext: false, targetedBonus: 0, cured: false, ...(vid ? { variantId: vid } : {}) };
+        const g = gradeFor(e, def.tags, def.drug?.spectrum);
+        return !g.harmful && g.pct > 0;
+      });
+      if (ok) n++;
+    }
+    const f = n / Math.max(1, diseases.length);
+    this.usefulCache.set(key, f);
+    return f;
+  }
+
   private cardValue(id: CardId, state: GameState): number {
     const def = cardDef(id);
     const b = cardBudget(db(), def);
     let v = b ? b.actual : 5;
-    if (def.drug || def.tags.some((t) => db().tags.find((x) => x.id === t)?.kind === "therapeutic")) {
-      // 현재 막 질병에 얼마나 듣는지 대략 반영
-      const act = state.run.act;
-      const diseases = db().diseases.filter((d) => d.act === act);
-      const useful = diseases.filter((d) => {
-        const eff = d.effectiveness;
-        return def.tags.some((t) => eff[t] === "weak" || eff[t] === "key") || (def.drug?.spectrum && (d.organism || d.variants?.some((x) => x.organism)));
-      }).length;
-      v *= 0.6 + useful / Math.max(1, diseases.length);
+    const hasDamage = def.effects.some((e) => e.op === "damage");
+    if (hasDamage && (def.drug || def.tags.some((t) => db().tags.find((x) => x.id === t)?.kind === "therapeutic"))) {
+      // 피해 부분만 적응증 비율로 깎는다
+      const f = this.usefulness(id, state.run.act);
+      v *= 0.35 + 0.65 * f;
     }
     if (def.kind === "diagnostic") v *= 0.8;
     return v;
@@ -176,7 +197,7 @@ export class GreedyBot {
           if (it.taken) continue;
           if (it.kind !== "card") return { type: "claim_reward", item: i };
           let bestK = -1;
-          let bestV = 9;
+          let bestV = run.deck.length < 18 ? 4 : 8;
           it.options.forEach((id, k) => {
             const v = this.cardValue(id, state);
             if (v > bestV) {
@@ -184,7 +205,7 @@ export class GreedyBot {
               bestK = k;
             }
           });
-          if (bestK >= 0 && run.deck.length < 28) return { type: "claim_reward", item: i, choice: bestK };
+          if (bestK >= 0 && run.deck.length < 30) return { type: "claim_reward", item: i, choice: bestK };
           return { type: "skip_reward", item: i };
         }
         return { type: "leave" };

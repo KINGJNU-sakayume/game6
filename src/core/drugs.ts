@@ -160,6 +160,28 @@ export function administer(state: GameState, cardUid: Uid, ctx: EffectCtx): void
   if (queued.length) c.queue.unshift(...queued);
 }
 
+/** 전투가 끝나 부작용 생성이 실행되지 못할 때: 지속 부작용만 런 덱에 남긴다. */
+export function emitPersistentOnly(state: GameState, cardUid: Uid): void {
+  const c = state.combat!;
+  const ci = c.limbo.find((x) => x.uid === cardUid);
+  if (!ci) return;
+  const def = cardDef(ci.cardId, ci.upgraded);
+  if (!def.drug || c.current?.suppressSideEffects) return;
+  const persistent = def.drug.sideEffects.filter((sp) => cardDef(sp.card).sideEffect?.persistent);
+  if (!persistent.length) return;
+  if (hasRelic(state, "five_rights") && !c.flags.fiveRightsUsed) {
+    c.flags.fiveRightsUsed = 1;
+    return;
+  }
+  const times = 1 + (c.current?.extraSideEffects ?? 0);
+  for (let t = 0; t < times; t++)
+    for (const sp of persistent)
+      for (let k = 0; k < sp.count; k++) {
+        state.run.deck.push({ uid: `c${state.nextUid++}`, cardId: sp.card, upgraded: false });
+        state.run.stats.sideEffectsGained += 1;
+      }
+}
+
 export function emitSideEffects(state: GameState, cardUid: Uid): void {
   const c = state.combat!;
   const ci = c.limbo.find((x) => x.uid === cardUid);

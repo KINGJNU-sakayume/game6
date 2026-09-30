@@ -8,7 +8,7 @@ import { enqueueBack, phaseOp, runQueue } from "./queue";
 import { emit, findEnemy, hasRelic, livingEnemies, log } from "./util";
 import type { CardInstance, CombatState, EffectCtx, EffectOp, EnemyState, GameState, Uid } from "./types";
 
-function createEnemy(state: GameState, diseaseId: string, hpPct: number | undefined, index: number): EnemyState {
+function createEnemy(state: GameState, diseaseId: string, hpPct: number | undefined, atkPct: number | undefined, index: number): EnemyState {
   const def = diseaseDef(diseaseId);
   const rng = state.rng.encounter;
   let sev = randRange(rng, def.severity[0], def.severity[1]);
@@ -37,6 +37,7 @@ function createEnemy(state: GameState, diseaseId: string, hpPct: number | undefi
     cured: false,
   };
   if (variantId) e.variantId = variantId;
+  if (atkPct && atkPct !== 100) e.atkPct = atkPct;
   return e;
 }
 
@@ -75,7 +76,7 @@ export function startCombat(state: GameState, encounterId: string, kind: CombatS
   shuffleInPlace(c.rng.shuffle, c.drawPile);
   state.combat = c;
   state.phase = "combat";
-  c.enemies = enc.enemies.map((x, i) => createEnemy(state, x.disease, x.hpPct, i));
+  c.enemies = enc.enemies.map((x, i) => createEnemy(state, x.disease, x.hpPct, x.atkPct, i));
   for (const e of c.enemies) planIntents(state, e);
   if (state.run.flags.fatigue) {
     c.patientStatuses.push({ id: "fatigue", stacks: 1 });

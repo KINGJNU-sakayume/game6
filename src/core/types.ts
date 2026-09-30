@@ -317,7 +317,7 @@ export interface EncounterDef {
   id: string;
   act: 1 | 2 | 3;
   pool: "easy" | "normal" | "elite" | "gate" | "boss";
-  enemies: { disease: DiseaseId; hpPct?: number }[];
+  enemies: { disease: DiseaseId; hpPct?: number; atkPct?: number }[];
   title?: string;
 }
 
@@ -477,6 +477,7 @@ export interface EnemyState {
   revealNext: boolean;
   targetedBonus: number;
   cured: boolean;
+  atkPct?: number;
 }
 
 export interface ActiveDrug {
