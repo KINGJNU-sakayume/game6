@@ -1,6 +1,6 @@
 // 전투 화면
 import React from "react";
-import { canPlay, cardCost, cardDef, isPlayable, previewDamage, previewInteractions, visibleEnemyInfo } from "../../core";
+import { canPlay, cardCost, cardDef, isPlayable, previewDamage, previewInteractions, returnInfo, visibleEnemyInfo } from "../../core";
 import type { GameState, InteractionPreview } from "../../core";
 import type { Fx, Settings } from "../controller";
 import { controller } from "../controller";
@@ -96,10 +96,10 @@ function CoachNote({ onClose }: { onClose: () => void }) {
       </button>
       <div className="coach-title hand">인턴 수첩</div>
       <ol className="coach-list">
-        <li>카드를 끌어 질병 위에 놓는다. 눌러서 고른 뒤 질병을 눌러도 된다.</li>
-        <li>질병 위 빨간 숫자가 이번 턴에 받을 피해. 안정화가 먼저 막는다.</li>
-        <li>진단 카드로 질병을 밝히면 반응표가 보인다. 특효 약은 두 배로 듣는다.</li>
-        <li>오더를 다 쓰면 턴 종료 (E).</li>
+        <li>주호소만으로는 모른다. 병력·진찰·검사 카드로 무엇을 볼지 골라 소견을 모은다.</li>
+        <li>오른쪽 감별 목록에서 가장 그럴듯한 병을 눌러 작업 진단으로 정한다. 틀리면 바꿀 수 있다(오더 1).</li>
+        <li>투약 오더로 처방집에서 약을 불러낸다. 작업 진단의 1차 치료는 ×1.3.</li>
+        <li>질병 위 숫자는 이번 턴에 나빠질 양. 안정화가 먼저 막는다. 턴 종료는 E.</li>
       </ol>
     </aside>
   );
@@ -266,11 +266,12 @@ export function CombatScreen({ state, fx, settings }: { state: GameState; fx: Fx
         if (ci) setSelected(ci.uid);
       } else if (k === "Escape") setSelected(null);
       else if (k === "Enter" && selected) tryPlaySelected(selected);
+      else if ((k === "r" || k === "R") && selected && returnInfo(state, selected).ok) controller.dispatch({ type: "return_card", cardUid: selected });
       else if ((k === "e" || k === "E") && !e.ctrlKey && !e.metaKey) controller.dispatch({ type: "end_turn" });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [hand, selected, state.pending, tryPlaySelected]);
+  }, [hand, selected, state, tryPlaySelected]);
 
   const views = c.enemies.map((e) => visibleEnemyInfo(state, e.uid)!).filter(Boolean);
   const durUid = activeUid ?? hoverCard;
@@ -306,6 +307,7 @@ export function CombatScreen({ state, fx, settings }: { state: GameState; fx: Fx
             <DiseasePanel
               key={v.uid}
               view={v}
+              compact={views.length > 1}
               fx={fx}
               targeting={targeting && !v.cured}
               hovered={hoverEnemy === v.uid}
@@ -392,6 +394,32 @@ export function CombatScreen({ state, fx, settings }: { state: GameState; fx: Fx
               <span className="hand-key mono" aria-hidden="true">
                 {i === 9 ? 0 : i + 1}
               </span>
+              {(isHover || isSel) && !drag && (() => {
+                const ri = returnInfo(state, ci.uid);
+                if (!ri.eligible) return null;
+                return (
+                  <button
+                    className="return-btn"
+                    disabled={!ri.ok}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      controller.dispatch({ type: "return_card", cardUid: ci.uid });
+                    }}
+                    {...tipProps(
+                      <>
+                        <div className="tip-title">처방 반납 (R)</div>
+                        이 환자에게 쓰지 않을 치료를 약제부로 돌려보내고 1장 뽑는다. 턴당 1회, 오더 없음.
+                        {ci.temp ? " 처방집에서 불러낸 임시 카드는 폐기된다." : " 덱 카드는 대기 처방 맨 아래로 간다."}
+                        {!ri.ok && <div className="tip-sub">{ri.reason}</div>}
+                      </>,
+                      "top",
+                    )}
+                  >
+                    반납
+                  </button>
+                );
+              })()}
             </div>
           );
         })}

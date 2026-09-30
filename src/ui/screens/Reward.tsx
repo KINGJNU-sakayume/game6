@@ -1,9 +1,15 @@
 import React from "react";
-import { cardDef, relicDef } from "../../core";
+import { cardDef, diseaseDef, relicDef } from "../../core";
 import type { GameState } from "../../core";
 import { controller } from "../controller";
 import { Card } from "../components/Card";
 import { RelicBadge } from "../components/Relic";
+
+const SLOT_LABEL: Record<string, { label: string; sub: string }> = {
+  general: { label: "일반", sub: "어디서나 쓰는 행동 카드" },
+  context: { label: "상황", sub: "이 병동 환자에게 듣는 처방" },
+  special: { label: "특수", sub: "빌드를 정하는 선택" },
+};
 
 const SOURCE_TITLE: Record<string, { title: string; sub: string }> = {
   normal: { title: "호출 처리 완료", sub: "환자가 고비를 넘겼다" },
@@ -29,6 +35,28 @@ export function RewardScreen({ state }: { state: GameState }) {
           </div>
           <div className="form-code">RX-SLIP {String(state.run.stats.combatsWon).padStart(3, "0")}</div>
         </div>
+        {r.summary && r.summary.length > 0 && (
+          <div className="discharge" aria-label="퇴원 요약">
+            <div className="discharge-title mono">DISCHARGE SUMMARY · 퇴원 요약</div>
+            {r.summary.map((row, i) => {
+              const right = row.workingDx === row.diseaseId;
+              return (
+                <div key={i} className="discharge-row">
+                  <span className="dc-cc">"{row.complaint}"</span>
+                  <span className="dc-arrow">→</span>
+                  <b className="dc-dx">
+                    {diseaseDef(row.diseaseId).nameKo}
+                    {row.variantName && <span className="dc-var"> ({row.variantName})</span>}
+                  </b>
+                  <span className={`dc-wd ${row.workingDx ? (right ? "is-right" : "is-wrong") : ""}`}>
+                    {row.workingDx ? (right ? "작업 진단 일치" : `작업 진단: ${diseaseDef(row.workingDx).nameKo}`) : "작업 진단 없음"}
+                  </span>
+                  <span className="dc-meta">소견 {row.findings}{row.confirmed ? " · 확진" : ""}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
         <ul className="reward-list">
           {r.items.map((it, i) => (
             <li key={i} className={`reward-item ${it.taken ? "is-taken" : ""}`}>
@@ -48,7 +76,8 @@ export function RewardScreen({ state }: { state: GameState }) {
                 )}
                 {it.kind === "card" && (
                   <span className="reward-text">
-                    처방 추가 <span className="reward-dim">— {it.options.length}장 중 1장 고르기</span>
+                    {it.options.every((o) => cardDef(o.cardId).zone === "formulary") ? "다음 병동 처방집 신청" : "처방 추가"}{" "}
+                    <span className="reward-dim">— {it.options.length}개 중 1개 고르기</span>
                   </span>
                 )}
                 {it.kind === "relic" && (
@@ -73,23 +102,31 @@ export function RewardScreen({ state }: { state: GameState }) {
           <div className="pick-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="pick-head">
               <h3>처방 추가</h3>
-              <span className="hand">한 장을 골라 처방 목록에 넣는다</span>
+              <span className="hand">약·시술은 처방집으로, 행동 카드는 덱으로 간다</span>
             </div>
             <div className="pick-cards">
-              {cardItem.options.map((id, k) => (
-                <div key={id} className="pick-card">
-                  <Card
-                    cardId={id}
-                    size="lg"
-                    onClick={() => {
-                      controller.dispatch({ type: "claim_reward", item: picking, choice: k });
-                      setPicking(null);
-                    }}
-                    tabIndex={0}
-                  />
-                  <span className="pick-kind">{cardDef(id).kind === "drug" ? "약물" : cardDef(id).kind === "diagnostic" ? "진단" : "처치"}</span>
-                </div>
-              ))}
+              {cardItem.options.map((o, k) => {
+                const def = cardDef(o.cardId);
+                const toFormulary = def.zone === "formulary";
+                const owned = toFormulary && state.run.formulary.some((c) => c.cardId === o.cardId);
+                return (
+                  <div key={o.cardId} className={`pick-card slot-${o.slot}`}>
+                    <Card
+                      cardId={o.cardId}
+                      size="lg"
+                      onClick={() => {
+                        controller.dispatch({ type: "claim_reward", item: picking, choice: k });
+                        setPicking(null);
+                      }}
+                      tabIndex={0}
+                    />
+                    <span className="pick-kind">
+                      <b className="pick-slot-name">{SLOT_LABEL[o.slot]?.label}</b> {toFormulary ? (owned ? "처방집 · 이미 있음 → 최적화" : "처방집에 추가") : "처방 목록(덱)에 추가"}
+                    </span>
+                    <span className="pick-slot">{SLOT_LABEL[o.slot]?.sub}</span>
+                  </div>
+                );
+              })}
             </div>
             <div className="pick-foot">
               <button

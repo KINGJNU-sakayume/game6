@@ -1,6 +1,8 @@
 // ValueExpr·Condition 평가와 대상 해석. design.md D6
 import { cardDef, diseaseDef } from "./registry";
 import { currentTraits } from "./disease";
+import { LEVEL_RANK, isObserved, pendingChannels, scoreDifferential } from "./evidence";
+import { allTraits, textbook } from "./textbook";
 import { randInt } from "./rng";
 import { combatOf, findEnemy, livingEnemies, statusStacks } from "./util";
 import type { Condition, EffectCtx, EnemyState, GameState, TargetSel, ValueExpr } from "./types";
@@ -129,7 +131,46 @@ export function evalCondition(state: GameState, ctx: EffectCtx, cond: Condition)
   }
   if ("eventDrugTag" in cond) return (ctx.eventDrugTags ?? []).includes(cond.eventDrugTag);
   if ("handHasCard" in cond) return !!c && c.hand.some((ci) => ci.cardId === cond.handHasCard);
+  // ── 플레이어 정보 조건 ──
+  if ("hasWorkingDx" in cond) return !!firstEnemyTarget(state, ctx, "target")?.workingDx;
+  if ("organismKnown" in cond) return !!firstEnemyTarget(state, ctx, "target")?.organismKnown;
+  if ("channelObserved" in cond) {
+    const e = firstEnemyTarget(state, ctx, ctx.owner.kind === "enemy" ? "self" : "target");
+    return !!e && isObserved(e, cond.channelObserved);
+  }
+  if ("ordersAtLeast" in cond) return !!c && c.orders >= cond.ordersAtLeast;
+  if ("activeDrugAny" in cond) return !!c && c.activeDrugs.length > 0;
+  if ("activeDrugBroad" in cond) return !!c && c.activeDrugs.some((d) => d.tags.includes("broad_spectrum"));
+  if ("pendingResults" in cond) {
+    const e = firstEnemyTarget(state, ctx, "target");
+    return !!e && pendingChannels(state, e.uid).length > 0;
+  }
+  if ("handHasSideEffect" in cond) return !!c && c.hand.some((ci) => cardDef(ci.cardId).kind === "side_effect");
+  if ("suspect" in cond) {
+    const e = firstEnemyTarget(state, ctx, "target");
+    if (!e) return false;
+    const q = cond.suspect;
+    return scoreDifferential(e).some((r) => {
+      if (r.ruledOut || LEVEL_RANK[r.level] < LEVEL_RANK[q.level]) return false;
+      const def = diseaseDef(r.diseaseId);
+      if (q.categories?.includes(def.category)) return true;
+      if (q.traits && allTraits(def).some((t) => q.traits!.includes(t))) return true;
+      if (q.tags) {
+        const tb = textbook(r.diseaseId, q.tags);
+        if (tb.classes.includes("good")) return true;
+      }
+      return false;
+    });
+  }
   return false;
+}
+
+/** 선택지 조건에 쓸 수 있는가: 실제 질병을 읽는 조건은 쓸 수 없다 */
+export function isPlayerKnownCondition(cond: Condition): boolean {
+  if ("all" in cond) return cond.all.every(isPlayerKnownCondition);
+  if ("any" in cond) return cond.any.every(isPlayerKnownCondition);
+  if ("not" in cond) return isPlayerKnownCondition(cond.not);
+  return !("targetCategory" in cond || "targetTrait" in cond || "severityBelowPct" in cond || "noCountdown" in cond);
 }
 
 export function inCombat(state: GameState): boolean {

@@ -1,6 +1,6 @@
 // 오버레이: 대기 선택, 처방 목록, 더미 보기, 증례집, 설정, 진료 안내
 import React from "react";
-import { cardDef, categoryName, db, diseaseDef } from "../../core";
+import { cardDef, categoryName, db, diseaseDef, textbookSummary } from "../../core";
 import type { CardInstance, GameState } from "../../core";
 import { controller } from "../controller";
 import type { Snapshot } from "../controller";
@@ -92,14 +92,23 @@ export function PileOverlay({ state, pile, onClose }: { state: GameState; pile: 
   );
 }
 
+export function FormularyOverlay({ state, onClose }: { state: GameState; onClose: () => void }) {
+  return (
+    <Sheet title="처방집" sub={`${state.run.formulary.length}개 · 투약 오더·시술 의뢰로 이 안에서 골라 손으로 불러낸다. 덱에는 섞이지 않는다.`} onClose={onClose} wide>
+      <CardGrid cards={sortCards(state.run.formulary)} />
+    </Sheet>
+  );
+}
+
 export function PendingOverlay({ state }: { state: GameState }) {
   const p = state.pending!;
+  if (p.kind === "choose_option") return null;
   const [picked, setPicked] = React.useState<Set<string>>(new Set());
   React.useEffect(() => setPicked(new Set()), [p]);
   const pool: CardInstance[] =
     p.kind === "select_cards"
       ? [...(state.combat?.hand ?? []), ...(state.combat?.drawPile ?? []), ...(state.combat?.discardPile ?? [])].filter((c) => p.candidates.includes(c.uid))
-      : state.run.deck.filter((c) => p.candidates.includes(c.uid));
+      : [...state.run.deck, ...state.run.formulary].filter((c) => p.candidates.includes(c.uid));
   const toggle = (uid: string) => {
     setPicked((s) => {
       const n = new Set(s);
@@ -142,28 +151,29 @@ export function PendingOverlay({ state }: { state: GameState }) {
 export function CasebookOverlay({ state, onClose }: { state: GameState; onClose: () => void }) {
   const confirmed = Object.keys(state.run.casebook);
   const all = db().diseases;
+  const complaints = (id: string) => db().presentations.filter((p) => p.candidates.some((c) => c.disease === id)).map((p) => p.complaint);
   return (
-    <Sheet title="증례집" sub={`이번 입원에서 확진한 질병 ${confirmed.length}/${all.length}. 다시 만나면 감별 단계에서 시작한다.`} onClose={onClose} wide>
+    <Sheet title="증례집" sub={`이번 입원에서 만난 질병 ${confirmed.length}/${all.length}. 만난 질병은 감별 목록에서 예상 소견을 보여 준다.`} onClose={onClose} wide>
       <div className="casebook">
         {all.map((d) => {
           const known = confirmed.includes(d.id);
+          const tb = textbookSummary(d.id);
           return (
             <div key={d.id} className={`case ${known ? "is-known" : ""}`}>
               <div className="case-act mono">{d.act}막</div>
+              <div className="case-name">{d.nameKo}</div>
+              <div className="case-en">{d.nameEn}</div>
+              <div className="case-meta">
+                {categoryName(d.category)} · 주호소 {complaints(d.id).map((c) => `"${c}"`).join(", ")}
+              </div>
+              <div className="case-note">{d.textbook.keyFeatures}</div>
               {known ? (
-                <>
-                  <div className="case-name">{d.nameKo}</div>
-                  <div className="case-en">{d.nameEn}</div>
-                  <div className="case-meta">
-                    {categoryName(d.category)} · 주호소 "{d.presentation.complaint}"
-                  </div>
-                  <div className="case-note">{d.medical.note}</div>
-                </>
+                <div className="case-rx">
+                  {tb.firstLine.length > 0 && <span>1차: {tb.firstLine.join(", ")}</span>}
+                  {tb.avoid.length > 0 && <span className="case-avoid"> · 피할 것: {tb.avoid.join(", ")}</span>}
+                </div>
               ) : (
-                <>
-                  <div className="case-name case-unknown">미확진</div>
-                  <div className="case-meta">주호소 "{d.presentation.complaint}"</div>
-                </>
+                <div className="case-rx case-unknown">아직 만나지 않았다</div>
               )}
             </div>
           );
@@ -243,39 +253,39 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
     <Sheet title="진료 안내" sub="처음 당직을 서는 사람을 위한 요약" onClose={onClose} wide>
       <div className="help">
         <section>
-          <h4>한 턴</h4>
+          <h4>한 턴의 흐름</h4>
           <p>
-            오더 3으로 카드를 쓴다. 약은 적응증이 있는 질병에만 듣고, 처치는 어디에나 든다. 턴을 마치면 질병이 의도대로 움직인다. <b>안정화</b>는 들어오는 피해를 먼저 막고, 내 턴이 시작되면 사라진다.
+            <b>안정화 → 감별 → 결정 → 치료 → 재평가.</b> 오더 3으로 카드를 쓴다. 턴을 마치면 질병이 표시된 방향으로 환자를 악화시킨다. <b>안정화</b>는 그 악화를 먼저 막고 내 턴이 시작되면 사라진다.
           </p>
         </section>
         <section>
-          <h4>진단</h4>
+          <h4>감별 진단</h4>
           <p>
-            처음에는 주호소와 단서 하나만 보인다. 진단 포인트가 쌓이면 <b>감별</b>(분류, 반응표, 단서 전부)과 <b>확진</b>(질병명, 원인균, 다음 의도)으로 넘어간다. 확진된 대상에게 <b>표적</b> 카드는 1.5배, 항생제는 내성을 쌓지 않는다.
+            처음에는 주호소와 활력징후, 감별 목록만 보인다. 병력·진찰·검사·영상·배양은 <b>무엇을 볼지 고르는</b> 결정이고, 질병을 깎지 않는다. 소견마다 각 가설을 지지(+)하거나 반대(−)한다. 정상 소견도 소견이다. 다른 가설이 모두 배제되면 확진된다.
           </p>
         </section>
         <section>
-          <h4>반응표</h4>
+          <h4>작업 진단</h4>
           <p>
-            <span className="gchip g-key">특효</span> ×2 <span className="gchip g-weak">우수</span> ×1.5 <span className="gchip g-normal">보통</span> <span className="gchip g-resistant">저하</span> ×0.5 <span className="gchip g-immune">무효</span> <span className="gchip g-harmful">금기</span> 악화. 반응표는 진단 전에도 실제로 작동한다. 모르고 써도 결과는 같다.
+            감별 목록에서 병을 눌러 <b>작업 진단</b>으로 정한다(처음은 무료, 바꾸면 오더 1). 작업 진단의 1차 치료는 ×1.3으로 듣고, 투약 오더가 그 병에 맞춰 약을 내놓는다. 틀린 작업 진단으로 치료하면 기대한 반응이 없고, 그 무반응이 곧 소견이 된다.
           </p>
         </section>
         <section>
-          <h4>약물</h4>
+          <h4>처방집과 투약 오더</h4>
           <p>
-            약을 쓰면 반감기만큼 <b>투여 중</b>으로 남는다. 투여 중인 약끼리 상호작용한다. 약에 커서를 올리면 <b>DUR 점검</b> 창이 발동할 규칙을 미리 보여 준다. 대부분의 약은 <b>부작용 카드</b>를 덱에 넣는다.
+            약과 결정적 시술은 덱이 아니라 <b>처방집</b>에 있다. 투약 오더·시술 의뢰를 쓰면 처방집에서 셋 중 하나를 골라 손으로 불러온다. 맞지 않는 치료 카드는 <b>반납</b>(턴당 1회, R)해 1장 뽑는다. 협진은 처방집 밖의 전문과 도구를 쥐여 준다.
+          </p>
+        </section>
+        <section>
+          <h4>반응과 원인균</h4>
+          <p>
+            <span className="gchip g-key">특효</span> ×2 <span className="gchip g-weak">우수</span> ×1.5 <span className="gchip g-normal">보통</span> <span className="gchip g-resistant">저하</span> ×0.5 <span className="gchip g-immune">무효</span> <span className="gchip g-harmful">금기</span> 악화. 원인균을 모른 채 쓴 항생제는 내성을 키운다. 배양은 그람 염색을 바로, 배양·감수성을 2턴 뒤에 준다.
           </p>
         </section>
         <section>
           <h4>조작</h4>
           <p>
-            카드를 끌어 질병 위에 놓거나, 눌러서 고른 뒤 질병을 누른다. 대상이 없는 카드는 한 번 더 누른다. 숫자 1–0 카드 선택, Enter 사용, E 턴 종료, Esc 취소.
-          </p>
-        </section>
-        <section>
-          <h4>경로</h4>
-          <p>
-            응급실(8층) → 병동(10층) → 중환자실(10층). 각 막의 끝에 주 진단이 있다. 당직실에서 쉬거나 처방을 최적화하고, 약제부에서 카드를 사고 뺀다.
+            카드를 끌어 질병 위에 놓거나, 눌러서 고른 뒤 질병을 누른다. 결정 창에서는 숫자 1–4로 고르고 Esc로 그만둔다. 숫자 1–0 카드 선택, Enter 사용, R 반납, E 턴 종료.
           </p>
         </section>
       </div>

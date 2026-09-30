@@ -1,7 +1,7 @@
 {
   "name": "order-set",
   "private": true,
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "오더 세트 — 의학 테마 덱빌딩 로그라이크",
   "type": "module",
   "engines": {

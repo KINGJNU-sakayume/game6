@@ -6,7 +6,7 @@ import { launchBrowser, serveReactLocally } from "./browser";
 import { CONTENT } from "../src/content";
 import { installContent, newRun, step } from "../src/core";
 import type { GameState } from "../src/core";
-import { GreedyBot } from "../src/sim/bots/greedy";
+import { ClinicianBot } from "../src/sim/bots/clinician";
 
 installContent(CONTENT);
 
@@ -27,7 +27,7 @@ function collect(): Partial<Record<Key, GameState>> {
   for (let i = 0; i < 60 && want.some((k) => !got[k]); i++) {
     const seed = `shot-${i}`;
     let s = newRun(seed);
-    const bot = new GreedyBot(seed, 120);
+    const bot = new ClinicianBot(seed, 120);
     let guard = 0;
     while (guard++ < 4000) {
       const put = (k: Key) => {

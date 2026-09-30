@@ -6,7 +6,7 @@ import { tipProps } from "../tooltip";
 
 const KIND_LABEL: Record<string, string> = { procedure: "처치", drug: "약물", diagnostic: "진단", side_effect: "부작용" };
 const KIND_EN: Record<string, string> = { procedure: "PROCEDURE", drug: "MEDICATION", diagnostic: "DIAGNOSTIC", side_effect: "ADVERSE EVENT" };
-const KW_ID: Record<string, string> = { 표적: "targeted", 소진: "exhaust", 보존: "retain", 휘발: "ethereal", "지속 효과": "power" };
+const KW_ID: Record<string, string> = { 소진: "exhaust", 보존: "retain", 휘발: "ethereal", "지속 효과": "power" };
 
 /** 업그레이드로 바뀐 숫자를 표시한다 */
 function diffLine(base: string | undefined, up: string, upgraded: boolean): React.ReactNode {
@@ -99,6 +99,13 @@ export function Card(props: CardProps): React.ReactElement {
             {diffLine(base?.lines[i], l, upgraded)}
           </div>
         ))}
+        {text.options && text.options.length > 0 && (
+          <ul className="card-opts">
+            {text.options.map((o) => (
+              <li key={o}>{o}</li>
+            ))}
+          </ul>
+        )}
         {text.keywords.length > 0 && (
           <div className="card-kw">
             {text.keywords.map((k) => {
@@ -125,6 +132,7 @@ export function Card(props: CardProps): React.ReactElement {
         {def.rarity === "uncommon" && <span className="rarity-tag">고급</span>}
         {def.rarity === "rare" && <span className="rarity-tag rare">희귀</span>}
         {props.temp && <span className="rarity-tag temp">임시</span>}
+        {!props.temp && def.zone === "formulary" && <span className="rarity-tag rx">처방집</span>}
       </div>
     </div>
   );

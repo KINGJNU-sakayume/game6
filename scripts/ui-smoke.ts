@@ -26,6 +26,7 @@ async function waitPlayed(page: Page, handBefore: number): Promise<boolean> {
     await page.waitForTimeout(25);
     if ((await phase(page)) !== "combat") return true;
     if ((await page.locator(".ov-sheet[role=dialog]").count()) > 0) return true;
+    if ((await page.locator(".decision").count()) > 0) return true;
     if ((await page.locator(".hand-slot").count()) !== handBefore) return true;
   }
   return false;
@@ -76,6 +77,15 @@ async function main() {
     if (SHOTS && seen[ph] === 1) await page.screenshot({ path: `${OUT}/${String(shot++).padStart(2, "0")}-${ph}.png` });
     if (errors.length) break;
 
+    // 임상 결정 창: 고를 수 있는 첫 선택지(없으면 그만두기)
+    if (await page.locator(".decision").count()) {
+      seen.decision = (seen.decision ?? 0) + 1;
+      if (SHOTS && seen.decision === 1) await page.screenshot({ path: `${OUT}/${String(shot++).padStart(2, "0")}-decision.png` });
+      const opt = page.locator(".decision .opt:not(:disabled)");
+      if (await opt.count()) await opt.first().click();
+      else await page.locator(".decision-foot .btn").click();
+      continue;
+    }
     // 대기 선택 창이 떠 있으면 먼저 처리
     if (await page.locator(".ov-sheet[role=dialog]").count()) {
       const cells = page.locator(".ov-sheet .grid-cell .card[role=button]");
@@ -95,6 +105,15 @@ async function main() {
         await page.waitForTimeout(500); // 손패가 들어오는 연출이 끝난 뒤
         const hover = await checkHoverStable(page);
         if (hover) errors.push(hover);
+      }
+      // 작업 진단이 없고 의심 이상인 가설이 있으면 정한다 (감별 목록 클릭 경로 검사)
+      if (!(await page.locator(".hyp.is-wd").count())) {
+        const lead = page.locator(".hyp.lv-strong .hyp-btn:not(:disabled), .hyp.lv-suspected .hyp-btn:not(:disabled)");
+        if (await lead.count()) {
+          await lead.first().click();
+          seen.commit = (seen.commit ?? 0) + 1;
+          continue;
+        }
       }
       // 쓸 수 있는 카드를 하나 쓰고, 없으면 턴 종료
       const cards = page.locator(".hand-slot .card:not(.is-dim)");
@@ -154,6 +173,7 @@ async function main() {
 
   if (!seen.combat) errors.push("전투 화면에 닿지 못했다");
   else if (!seen.reward) errors.push("전투에서 한 번도 이기지 못했다(보상 화면에 닿지 못함)");
+  if (seen.combat && !seen.decision) errors.push("임상 결정 창이 한 번도 뜨지 않았다");
 
   const report = `phases seen: ${JSON.stringify(seen)}\nfinal: ${final}`;
   console.log(report);

@@ -1,6 +1,6 @@
 // 임상 경로표 (지도). 왼쪽에서 오른쪽으로 시간이 흐른다.
 import React from "react";
-import { availableNodes, db, diseaseDef, treasureFloor } from "../../core";
+import { availableNodes, db, presentationDef, treasureFloor } from "../../core";
 import type { GameState, MapNode, NodeType } from "../../core";
 import { controller } from "../controller";
 import { NodeGlyph } from "../components/icons";
@@ -81,7 +81,7 @@ export function MapScreen({ state }: { state: GameState }) {
   };
   const nodes = Object.values(map.nodes);
   const bossEnc = db().encounters.find((e) => e.act === act && (e.pool === "boss" || e.pool === "gate"));
-  const bossComplaint = bossEnc ? diseaseDef(bossEnc.enemies[0]!.disease).presentation : undefined;
+  const bossComplaint = bossEnc ? presentationDef(bossEnc.problems[0]!.presentation) : undefined;
   const visitedEdges = new Set<string>();
   for (let i = 1; i < visited.length; i++) visitedEdges.add(`${visited[i - 1]}>${visited[i]}`);
   const title = ACT_TITLE[act]!;
@@ -177,7 +177,7 @@ export function MapScreen({ state }: { state: GameState }) {
                     <>
                       <div className="tip-title">주 진단{act === 2 ? " (관문)" : ""}</div>
                       {NODE_DESC.boss}
-                      {bossComplaint && <div className="tip-sub">주호소: {bossComplaint.complaint} — {bossComplaint.clues[0]}</div>}
+                      {bossComplaint && <div className="tip-sub">주호소: {bossComplaint.complaint} — {bossComplaint.vignette}</div>}
                     </>,
                     "left",
                   )}
@@ -190,7 +190,7 @@ export function MapScreen({ state }: { state: GameState }) {
                     {bossComplaint?.complaint ?? "?"}
                   </text>
                   <text x={x} y={y + 24} textAnchor="middle" className="map-boss-clue">
-                    {bossComplaint?.clues[0]?.slice(0, 11) ?? ""}
+                    {bossComplaint?.vignette.slice(0, 11) ?? ""}
                   </text>
                   {isAvail && <path d={penCircle(x, y, 62, hash(n.id))} className="map-pen" />}
                 </g>

@@ -1,10 +1,11 @@
-// npm run sim -- <combat|run> [--deck act1] [--encounter id] [--n 100] [--bot greedy|random] [--cap 300]
+// npm run sim -- <combat|run|metrics> [--deck starter] [--encounter id] [--n 100] [--bot clinician|random]
 import { CONTENT } from "../content";
-import { cardDef, db, diseaseDef, installContent, newRun, step } from "../core";
+import { db, diseaseDef, cardDef, installContent, newRun, step } from "../core";
 import { startCombat } from "../core/combat";
-import { GreedyBot } from "./bots/greedy";
+import { ClinicianBot } from "./bots/clinician";
 import { RandomBot } from "./bots/random";
-import { DECKS } from "./decks";
+import { DECKS, FORMULARIES } from "./decks";
+import { aggregate, formatAggregate, runWithMetrics } from "./metrics";
 import type { GameState } from "../core";
 
 installContent(CONTENT);
@@ -15,11 +16,10 @@ function arg(name: string, def: string): string {
 }
 const cmd = process.argv[2] ?? "combat";
 const N = Number(arg("n", "100"));
-const botName = arg("bot", "greedy");
-const cap = Number(arg("cap", "300"));
+const botName = arg("bot", "clinician");
 
 function makeBot(seed: string) {
-  return botName === "random" ? new RandomBot(seed) : new GreedyBot(seed, cap);
+  return botName === "random" ? new RandomBot(seed) : new ClinicianBot(seed);
 }
 
 function mean(xs: number[]) {
@@ -30,8 +30,9 @@ function sd(xs: number[]) {
   return Math.sqrt(mean(xs.map((x) => (x - m) ** 2)));
 }
 
-function combatOnce(seed: string, deck: string[], encounterId: string, act: 1 | 2 | 3): { win: boolean; loss: number; turns: number; se: number } {
-  let s: GameState = newRun(seed, { deck });
+function combatOnce(seed: string, deck: string[], encounterId: string, act: 1 | 2 | 3): { win: boolean; loss: number; turns: number; se: number; correct: number } {
+  const f = arg("formulary", "");
+  let s: GameState = newRun(seed, { deck, formulary: f ? (FORMULARIES[f] ?? f.split(",")) : FORMULARIES[`act${act}`] });
   s.run.act = act;
   s.run.floor = 3;
   const enc = db().encounters.find((e) => e.id === encounterId)!;
@@ -41,12 +42,11 @@ function combatOnce(seed: string, deck: string[], encounterId: string, act: 1 | 
   const start = s.run.vitality;
   let guard = 0;
   let lastTurn = 0;
-  while (s.phase === "combat" && guard++ < 400) {
+  while (s.phase === "combat" && guard++ < 600) {
     lastTurn = s.combat?.turn ?? lastTurn;
-    const a = bot.choose(s);
-    s = step(s, a).state;
+    s = step(s, bot.choose(s)).state;
   }
-  return { win: s.phase !== "gameover", loss: start - s.run.vitality, turns: lastTurn, se: s.run.stats.sideEffectsGained };
+  return { win: s.phase !== "gameover", loss: start - s.run.vitality, turns: lastTurn, se: s.run.stats.sideEffectsGained, correct: s.run.stats.finalDxCorrect / Math.max(1, s.run.stats.finalDx) };
 }
 
 if (cmd === "combat") {
@@ -56,7 +56,7 @@ if (cmd === "combat") {
   const act = Number(arg("act", deckName.startsWith("act") ? deckName.slice(3) : "1")) as 1 | 2 | 3;
   const encs = encArg === "all" ? db().encounters.filter((e) => e.act === act) : db().encounters.filter((e) => e.id === encArg);
   console.log(`deck=${deckName} (${deck.length}장) bot=${botName} n=${N}`);
-  console.log("encounter".padEnd(20), "win%".padStart(6), "loss".padStart(6), "σ".padStart(5), "turns".padStart(6), "SE".padStart(5));
+  console.log("encounter".padEnd(20), "win%".padStart(6), "loss".padStart(6), "σ".padStart(5), "turns".padStart(6), "SE".padStart(5), "dx%".padStart(5));
   for (const e of encs) {
     const res = Array.from({ length: N }, (_, i) => combatOnce(`${e.id}-${i}`, deck, e.id, act));
     const losses = res.map((r) => r.loss);
@@ -67,29 +67,32 @@ if (cmd === "combat") {
       sd(losses).toFixed(1).padStart(5),
       mean(res.map((r) => r.turns)).toFixed(1).padStart(6),
       mean(res.map((r) => r.se)).toFixed(1).padStart(5),
+      (mean(res.map((r) => r.correct)) * 100).toFixed(0).padStart(5),
     );
   }
-} else if (cmd === "run") {
-  let wins = 0;
-  const reached = [0, 0, 0, 0];
-  const causes: Record<string, number> = {};
-  const floors: number[] = [];
-  for (let i = 0; i < N; i++) {
+} else if (cmd === "run" || cmd === "metrics") {
+  const runs = Array.from({ length: N }, (_, i) => {
     const seed = `run-${i}`;
-    let s = newRun(seed);
     const bot = makeBot(seed);
-    let guard = 0;
-    while (s.phase !== "gameover" && s.phase !== "victory" && guard++ < 6000) s = step(s, bot.choose(s)).state;
-    reached[s.run.act]! += 1;
-    floors.push(s.run.stats.floorsClimbed);
-    if (s.phase === "victory") wins++;
-    else {
-      const dc = s.run.stats.deathCause;
-      const c = !dc ? "?" : dc.startsWith("se:") ? `부작용(${cardDef(dc.slice(3)).nameKo})` : dc.startsWith("status:") ? `상태(${dc.slice(7)})` : diseaseDef(dc).nameKo;
-      causes[c] = (causes[c] ?? 0) + 1;
-    }
+    return runWithMetrics(seed, (s) => bot.choose(s));
+  });
+  const agg = aggregate(runs);
+  const named = { ...agg, deaths: Object.fromEntries(Object.entries(agg.deaths).map(([k, v]) => [deathName(k), v])) };
+  console.log(`bot=${botName}`);
+  console.log(formatAggregate(named, cmd === "metrics" ? 30 : 0));
+  if (arg("json", "")) {
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(arg("json", ""), JSON.stringify(named, null, 2));
   }
-  console.log(`bot=${botName} n=${N} 승률 ${((wins / N) * 100).toFixed(1)}%`);
-  console.log(`도달 막: 1막 ${reached[1]}, 2막 ${reached[2]}, 3막 ${reached[3]} / 평균 층 ${mean(floors).toFixed(1)}`);
-  console.log("사망 원인:", Object.entries(causes).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(", "));
+}
+
+function deathName(dc: string): string {
+  if (!dc || dc === "?") return "?";
+  if (dc.startsWith("se:")) return `부작용(${cardDef(dc.slice(3)).nameKo})`;
+  if (dc.startsWith("status:")) return `상태(${dc.slice(7)})`;
+  try {
+    return diseaseDef(dc).nameKo;
+  } catch {
+    return dc;
+  }
 }

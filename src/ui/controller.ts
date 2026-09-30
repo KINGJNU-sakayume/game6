@@ -7,6 +7,8 @@ import { setSoundEnabled, sfx } from "./sfx";
 installContent(CONTENT);
 
 const SAVE_KEY = "orderset.save";
+/** 저장 파일 형식. 3: 감별 진단·처방집 모델 (2 이하의 저장은 규칙이 달라 이어 하지 않는다) */
+const SAVE_VERSION = 3;
 const SETTINGS_KEY = "orderset.settings";
 
 export type AnimSpeed = "normal" | "fast" | "off";
@@ -64,7 +66,7 @@ function safeRemove(key: string): void {
 /** 없는 카드·유물 ID를 대체한다 (design §3.9) */
 function migrate(state: GameState): { state: GameState; warnings: string[] } {
   const warnings: string[] = [];
-  for (const c of state.run.deck) {
+  for (const c of [...state.run.deck, ...(state.run.formulary ?? [])]) {
     if (!hasCard(c.cardId)) {
       warnings.push(`카드 ${c.cardId}`);
       c.cardId = "obsolete_card";
@@ -116,7 +118,7 @@ class Controller {
     if (!raw) return false;
     try {
       const f = JSON.parse(raw) as SaveFile;
-      return f.schemaVersion === 2 && f.state.phase !== "gameover" && f.state.phase !== "victory";
+      return f.schemaVersion === SAVE_VERSION && f.state.phase !== "gameover" && f.state.phase !== "victory";
     } catch {
       return false;
     }
@@ -146,7 +148,7 @@ class Controller {
     if (!raw) return false;
     try {
       const f = JSON.parse(raw) as SaveFile;
-      if (f.schemaVersion !== 2) return false;
+      if (f.schemaVersion !== SAVE_VERSION) return false;
       const { state, warnings } = migrate(f.state);
       this.log = f.actionLog ?? [];
       this.emit({ state, fx: [], lastError: warnings.length ? `저장 파일의 일부 항목이 사라져 대체했다: ${warnings.join(", ")}` : undefined });
@@ -190,7 +192,7 @@ class Controller {
   }
 
   private persist(state: GameState): void {
-    const file: SaveFile = { schemaVersion: 2, state, actionLog: this.log };
+    const file: SaveFile = { schemaVersion: SAVE_VERSION, state, actionLog: this.log };
     safeSet(SAVE_KEY, JSON.stringify(file));
   }
 
@@ -303,7 +305,32 @@ class Controller {
           push({ kind: "toast", text: `${ev.blocked ? "DUR 차단 · " : ""}${ev.ruleId} ${ev.text}`, tone: ev.blocked ? "info" : ev.kind, dur: 2600 });
           break;
         case "knowledge_up":
-          push({ kind: "stamp", target: ev.target, text: ev.level === 2 ? "확진" : "감별", dur: 1400 });
+          if (ev.level === 2) push({ kind: "stamp", target: ev.target, text: "확진", dur: 1400 });
+          break;
+        case "finding_revealed": {
+          const moved = ev.changes.filter((x) => x.before !== x.after);
+          push({ kind: "float", target: ev.target, text: "새 소견", tone: "info", dur: 900 });
+          if (moved.length) push({ kind: "toast", text: `소견: ${ev.text}`, tone: "info", dur: 2000 });
+          break;
+        }
+        case "result_pending":
+          push({ kind: "toast", text: `${ev.label}: ${ev.turns}턴 뒤 결과`, tone: "info", dur: 1600 });
+          break;
+        case "diagnosis_committed":
+          push({ kind: "toast", text: ev.revised ? "작업 진단을 바꿨다" : "작업 진단을 정했다", tone: "info", dur: 1500 });
+          break;
+        case "organism_identified":
+          push({ kind: "toast", text: "배양 결과: 원인균 확인", tone: "info", dur: 2200 });
+          break;
+        case "treatment_response":
+          if (ev.response === "none") push({ kind: "toast", text: "기대한 반응이 없다 — 진단을 다시 생각해 본다", tone: "hazard", dur: 2600 });
+          break;
+        case "definitive":
+          push({ kind: "stamp", target: ev.target, text: "결정적 치료", dur: 1400 });
+          push({ kind: "toast", text: ev.text, tone: "synergy", dur: 2600 });
+          break;
+        case "card_returned":
+          push({ kind: "toast", text: `처방 반납: ${cardDef(ev.cardId).nameKo}`, tone: "info", dur: 1400 });
           break;
         case "phase_changed":
           push({ kind: "toast", text: `상태 변화: ${ev.name}`, tone: "hazard", dur: 2400 });

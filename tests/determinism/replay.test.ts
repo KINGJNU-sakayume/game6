@@ -51,15 +51,31 @@ describe("결정론", () => {
     step(s, { type: "move_map", nodeId: Object.values(s.run.map.nodes).find((n) => n.floor === 1)!.id });
     expect(stateHash(s)).toBe(before);
   });
-  it("대기 선택 중 저장·복원 후 재개해도 결과가 같다 (큐 직렬화)", async () => {
+  it("대기 결정 중 저장·복원 후 재개해도 결과가 같다 (큐 직렬화)", async () => {
     const { makeCombat, play: playCard } = await import("../helpers");
-    let s = makeCombat({ hand: ["chart_review", "first_aid", "stabilize"] });
-    s = playCard(s, "chart_review").state;
-    expect(s.pending?.kind).toBe("select_cards");
+    let s = makeCombat({ hand: ["consult", "stabilize"], enemies: [{ disease: "pyelo", variant: "ecoli" }] });
+    s = playCard(s, "consult").state;
+    expect(s.pending?.kind).toBe("choose_option");
     const copy = JSON.parse(JSON.stringify(s)) as GameState;
-    const pick = s.pending!.candidates[0]!;
-    const a = step(s, { type: "choose_cards", uids: [pick] }).state;
-    const b = step(copy, { type: "choose_cards", uids: [pick] }).state;
+    const pick = (s.pending as { options: { id: string; available: boolean }[] }).options.find((o) => o.available)!.id;
+    const a = step(s, { type: "choose_option", optionId: pick }).state;
+    const b = step(copy, { type: "choose_option", optionId: pick }).state;
     expect(stateHash(a)).toBe(stateHash(b));
+  });
+  it("임상 결정이 많은 판단 봇 전체 런도 리플레이로 같은 해시", async () => {
+    const { ClinicianBot } = await import("../../src/sim/bots/clinician");
+    for (let i = 0; i < 3; i++) {
+      let s = newRun(`cl-replay-${i}`);
+      const bot = new ClinicianBot(`cl-replay-${i}`);
+      const log: Action[] = [];
+      for (let k = 0; k < 4000 && s.phase !== "gameover" && s.phase !== "victory"; k++) {
+        const a = bot.choose(s);
+        log.push(a);
+        s = step(s, a).state;
+      }
+      let r = newRun(`cl-replay-${i}`);
+      for (const a of log) r = step(r, a).state;
+      expect(stateHash(r)).toBe(stateHash(s));
+    }
   });
 });

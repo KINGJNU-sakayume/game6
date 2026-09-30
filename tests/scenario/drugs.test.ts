@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { act, allPileIds, handIds, makeCombat, play } from "../helpers";
+import { act, allPileIds, handIds, makeCombat, play, playChoose } from "../helpers";
 
 describe("투여 중 약물과 반감기 (R2)", () => {
   it("노르에피네프린을 쓴 다음 턴 시작에 안정화 3을 얻는다", () => {
     let s = makeCombat({ hand: ["norepinephrine"], enemies: [{ disease: "septic_shock", variant: "gram_neg" }] });
-    s = play(s, "norepinephrine").state;
+    s = playChoose(s, "norepinephrine", ["low"]).state;
     expect(s.combat!.activeDrugs.map((d) => d.cardId)).toContain("norepinephrine");
     s = act(s, { type: "end_turn" }).state;
     expect(s.combat!.turn).toBe(2);
@@ -14,7 +14,7 @@ describe("투여 중 약물과 반감기 (R2)", () => {
   });
   it("반감기 1 약물도 적 턴과 다음 턴 시작까지 유지된다", () => {
     let s = makeCombat({ hand: ["epinephrine"], enemies: [{ disease: "anaphylaxis", severity: 150 }] });
-    s = play(s, "epinephrine").state;
+    s = playChoose(s, "epinephrine", ["im"]).state;
     expect(s.combat!.activeDrugs.some((d) => d.cardId === "epinephrine")).toBe(true);
     s = act(s, { type: "end_turn" }).state;
     // 턴 시작 처리 마지막에 종료
@@ -23,7 +23,7 @@ describe("투여 중 약물과 반감기 (R2)", () => {
   it("패혈성 쇼크 2단계: 승압제가 투여 중이면 저혈압 피해가 없다", () => {
     let s = makeCombat({ hand: ["norepinephrine"], enemies: [{ disease: "septic_shock", variant: "gram_neg", phase: 1 }] });
     s.combat!.patientStatuses.push({ id: "hypotension", stacks: 3 });
-    s = play(s, "norepinephrine").state;
+    s = playChoose(s, "norepinephrine", ["low"]).state;
     s.combat!.stability = 999; // 적 공격을 막아 저혈압만 본다
     const before = s.run.vitality;
     s = act(s, { type: "end_turn" }).state;
@@ -51,15 +51,23 @@ describe("부작용 생성 시점 (R3)", () => {
     let s = makeCombat({ hand: ["kcl", "dextrose", "insulin"], enemies: [{ disease: "dka" }] });
     s = play(s, "kcl").state;
     s = play(s, "dextrose").state;
-    const r = play(s, "insulin");
+    const r = playChoose(s, "insulin", ["standard"]);
     expect(r.events.some((e) => e.type === "interaction_fired" && e.ruleId === "S4")).toBe(true);
     expect(allPileIds(r.state)).not.toContain("hypoglycemia");
   });
   it("포도당 없이 인슐린을 쓰면 저혈당이 생긴다", () => {
     let s = makeCombat({ hand: ["kcl", "insulin"], enemies: [{ disease: "dka" }] });
     s = play(s, "kcl").state;
-    s = play(s, "insulin").state;
+    s = playChoose(s, "insulin", ["standard"]).state;
     expect(allPileIds(s)).toContain("hypoglycemia");
+  });
+  it("인슐린 집중 주입(킥커)은 오더를 1 더 쓰고 더 세게 듣지만 저혈당을 손에 넣는다", () => {
+    const base = makeCombat({ hand: ["insulin"], enemies: [{ disease: "dka", severity: 200 }], orders: 3 });
+    const std = playChoose(base, "insulin", ["standard"]).state;
+    const hi = playChoose(base, "insulin", ["intensive"]).state;
+    expect(std.combat!.orders - hi.combat!.orders).toBe(1);
+    expect(hi.combat!.enemies[0]!.severity).toBeLessThan(std.combat!.enemies[0]!.severity);
+    expect(handIds(hi)).toContain("hypoglycemia");
   });
   it("투약 5R 원칙은 첫 약물 부작용을 막는다", () => {
     let s = makeCombat({ hand: ["ceftriaxone", "ceftriaxone"], relics: ["five_rights"], enemies: [{ disease: "cap", variant: "pneumococcus" }] });
@@ -85,11 +93,11 @@ describe("상호작용 규칙", () => {
   });
   it("H8: 칼륨 없이 인슐린 → 저칼륨혈증, 염화칼륨 뒤에는 없음", () => {
     let s = makeCombat({ hand: ["insulin"], enemies: [{ disease: "dka" }] });
-    let r = play(s, "insulin");
+    let r = playChoose(s, "insulin", ["standard"]);
     expect(r.events.some((e) => e.type === "interaction_fired" && e.ruleId === "H8")).toBe(true);
     s = makeCombat({ hand: ["kcl", "insulin"], enemies: [{ disease: "dka" }] });
     s = play(s, "kcl").state;
-    r = play(s, "insulin");
+    r = playChoose(s, "insulin", ["standard"]);
     expect(r.events.some((e) => e.type === "interaction_fired" && e.ruleId === "H8")).toBe(false);
   });
   it("S1: 겐타마이신 투여 중 세프트리악손은 ×1.5가 같은 카드 피해에 반영된다", () => {
@@ -160,8 +168,8 @@ describe("부작용 수명", () => {
 
 describe("효과 순서 (R4)", () => {
   it("card_played 반응은 카드 효과 뒤에 온다", () => {
-    const s = makeCombat({ hand: ["first_aid"], enemies: [{ disease: "gastroenteritis" }] });
-    const r = play(s, "first_aid");
+    const s = makeCombat({ hand: ["supportive_care"], enemies: [{ disease: "gastroenteritis" }] });
+    const r = play(s, "supportive_care");
     const iDamage = r.events.findIndex((e) => e.type === "damage");
     const iPlayed = r.events.findIndex((e) => e.type === "card_played");
     expect(iPlayed).toBeGreaterThanOrEqual(0);

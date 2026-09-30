@@ -1,15 +1,18 @@
 // 효과 큐 처리와 명령 실행기, 턴 흐름 단계. design.md §3.7, D6
-import { cardDef, db, diseaseDef, relicDef, statusDef } from "./registry";
-import { addDiagnosis, confirmEnemy, findMove, phaseDef } from "./disease";
+import { cardDef, channelDef, db, diseaseDef, relicDef, statusDef, tagDef } from "./registry";
+import { currentOrganism, findMove, phaseDef } from "./disease";
 import { calcEnemyAttack, calcPlayerDamage } from "./damage";
+import { bestChannels, isObserved, observe, observeResponse, pendingChannels } from "./evidence";
+import { consultRecommendDefs, consultSpecialtyDefs, discoverDefs, openChoice, procedureDecisionDefs, procedureRisk, stopDrugDefs } from "./choice";
+import { responseClass } from "./textbook";
 import { administer, diseaseLabel, emitPersistentOnly, emitSideEffects, endDrugs, harmfulResponse, tickDrugs } from "./drugs";
-import { addCardTo, addGeneratedCard, createInstance, drawCards, exhaustInstance, matchesFilter, pileOf, removeFromPiles } from "./cards";
+import { addCardTo, addGeneratedCard, drawCards, exhaustInstance, matchesFilter, pileOf, removeFromPiles } from "./cards";
 import { planIntents, replanAll } from "./enemy-ai";
 import { fire } from "./triggers";
 import { pickOne } from "./rng";
 import { drugTagActive, evalCondition, evalValue, resolveTargets } from "./values";
 import { addStatus, clamp, emit, findEnemy, hasRelic, livingEnemies, log, modifierValue, removeStatus, statusStacks } from "./util";
-import type { CardInstance, EffectCtx, EffectOp, EnemyState, GameState, QueuedEffect, TurnPhase } from "./types";
+import type { CardInstance, DelayedEffect, EffectCtx, EffectOp, EnemyState, GameState, QueuedEffect, TargetSel, TurnPhase } from "./types";
 
 const QUEUE_LIMIT = 1000;
 
@@ -159,41 +162,75 @@ function execDamage(state: GameState, op: Extract<EffectOp, { op: "damage" }>, c
   }
   const tags = op.tags ?? ctx.cardTags ?? [];
   const card = ctx.owner.kind === "card" && ctx.owner.cardId ? cardDef(ctx.owner.cardId) : undefined;
+  // 치료 반응 기록용 이름과 키: 카드 태그로 판정하면 카드, 명령에 태그가 따로 있으면 그 태그
+  const rxCard = !op.tags && card ? card.id : undefined;
+  const rxName = card ? (op.tags ? `${card.nameKo}(${op.tags.map((t) => tagName(t)).join("·")})` : card.nameKo) : "치료";
   for (const t of resolveTargets(state, ctx, op.target ?? "target")) {
     if (t.kind !== "enemy") continue;
     const enemy = t.enemy;
     for (let h = 0; h < hits; h++) {
       if (enemy.cured) break;
       const calc = calcPlayerDamage(state, ctx, enemy, amount, tags, op.mods);
+      const cls = responseClass(calc.grade);
       if (calc.grade.harmful) {
-        if (card?.kind === "drug") {
+        if (card?.kind === "drug" && !op.tags) {
           emit({ type: "ineffective", target: enemy.uid, reason: "immune" });
         } else {
-          harmfulResponse(state, enemy, calc.d1, card?.nameKo ?? "처치");
+          harmfulResponse(state, enemy, calc.d1, rxName);
+          observeResponse(state, enemy, rxCard, tags, "worse", rxName);
         }
         break;
       }
       if (calc.grade.pct === 0) {
         emit({ type: "ineffective", target: enemy.uid, reason: calc.grade.basis === "not_indicated" ? "not_indicated" : "immune" });
-        if (card) log(c, "info", `${card.nameKo}: ${diseaseLabel(enemy)}에 ${calc.grade.basis === "not_indicated" ? "적응증 아님" : "무효"}`);
+        if (cls) observeResponse(state, enemy, rxCard, tags, cls, rxName);
         break;
       }
       const d = calc.final;
+      if (d <= 0 && calc.grade.basis === "generic") break; // 치료가 아닌 부수 효과(조영제 등): 금기일 때만 의미가 있다
       const absorbed = Math.min(enemy.stability, d);
       enemy.stability -= absorbed;
       enemy.severity = Math.max(0, enemy.severity - (d - absorbed));
       emit({ type: "damage", target: enemy.uid, amount: d, absorbed, grade: calc.grade.grade === "not_indicated" ? undefined : calc.grade.grade });
-      if (card?.drug?.spectrum && d >= 1 && (enemy.knowledge < 2 || tags.includes("broad_spectrum"))) gainResistance(state, enemy, tags);
+      if (card?.drug?.spectrum && d >= 1) {
+        // 원인균을 모르는 경험적 사용과 광범위 항생제는 내성을 쌓는다
+        if (!enemy.organismKnown || tags.includes("broad_spectrum")) gainResistance(state, enemy, tags);
+      }
       if (enemy.severity <= 0) {
         cureEnemy(state, enemy);
         break;
       }
+      if (cls) observeResponse(state, enemy, rxCard, tags, cls, rxName);
+      if (cls === "good") applyDefinitive(state, enemy, tags);
       checkPhaseThreshold(state, enemy);
     }
   }
 }
 
+function tagName(t: string): string {
+  return tagDef(t)?.nameKo ?? t;
+}
+
+/** 결정적 치료가 들으면 질병의 기전이 바뀐다 (한 번만) */
+function applyDefinitive(state: GameState, enemy: EnemyState, tags: string[]): void {
+  const def = diseaseDef(enemy.diseaseId);
+  for (const [i, d] of (def.definitive ?? []).entries()) {
+    const key = `def${i}`;
+    if (enemy.definitiveUsed.includes(key)) continue;
+    if (!d.tags.some((t) => tags.includes(t))) continue;
+    enemy.definitiveUsed.push(key);
+    emit({ type: "definitive", target: enemy.uid, text: d.text });
+    log(state.combat!, "diag", d.text);
+    enqueueFront(state, d.effects, { owner: { kind: "system", id: "definitive" }, targetUid: enemy.uid });
+  }
+}
+
 // ───────────────────────── 실행기 ─────────────────────────
+
+function decisionTarget(state: GameState, ctx: EffectCtx, sel: TargetSel | undefined): EnemyState | undefined {
+  const t = resolveTargets(state, ctx, sel ?? "target").find((r) => r.kind === "enemy");
+  return t && t.kind === "enemy" ? t.enemy : undefined;
+}
 
 function selectedCards(state: GameState, ctx: EffectCtx): CardInstance[] {
   const c = state.combat!;
@@ -258,6 +295,18 @@ function execute(state: GameState, item: QueuedEffect): void {
     case "draw":
       drawCards(state, Math.max(0, evalValue(state, ctx, op.amount)));
       return;
+    case "draw_filtered": {
+      let n = op.amount;
+      for (const ci of [...c.drawPile]) {
+        if (n <= 0) break;
+        if (!matchesFilter(cardDef(ci.cardId), op.filter)) continue;
+        c.drawPile.splice(c.drawPile.indexOf(ci), 1);
+        addCardTo(state, ci, "hand");
+        emit({ type: "card_drawn", uid: ci.uid, cardId: ci.cardId });
+        n -= 1;
+      }
+      return;
+    }
     case "exhaust_cards": {
       let left = op.amount === "all" ? Infinity : op.amount;
       for (const pile of op.from) {
@@ -273,19 +322,8 @@ function execute(state: GameState, item: QueuedEffect): void {
       return;
     }
     case "add_card":
-      for (let i = 0; i < op.count; i++) addGeneratedCard(state, op.cardId, op.dest, op.costZeroThisTurn);
+      for (let i = 0; i < op.count; i++) addGeneratedCard(state, op.cardId, op.dest, op.costZeroThisTurn, op.upgraded);
       return;
-    case "add_random_card": {
-      const pool = db().cards.filter((d) => d.rarity === op.rarity && d.kind !== "side_effect");
-      if (!pool.length) return;
-      const pick = pickOne(c.rng.cardEffect, pool);
-      const ci = createInstance(state, pick.id, true);
-      if (op.costZeroThisTurn) ci.costZeroThisTurn = true;
-      addCardTo(state, ci, "hand");
-      emit({ type: "card_gained", cardId: pick.id });
-      log(c, "info", `${pick.nameKo} 카드를 손에 넣었다`);
-      return;
-    }
     case "apply_status": {
       const stacks = evalValue(state, ctx, op.stacks);
       const fresh = !!c.flags.enemyPhase;
@@ -304,22 +342,6 @@ function execute(state: GameState, item: QueuedEffect): void {
       for (const t of resolveTargets(state, ctx, op.target)) {
         if (t.kind === "patient") removeStatus(c.patientStatuses, op.status, op.stacks);
         else removeStatus(t.enemy.statuses, op.status, op.stacks);
-      }
-      return;
-    case "diagnose": {
-      const pts = evalValue(state, ctx, op.points);
-      for (const t of resolveTargets(state, ctx, op.target)) {
-        if (t.kind !== "enemy") continue;
-        const r = addDiagnosis(state, t.enemy, pts);
-        if (r.levelUp) onKnowledgeUp(state, t.enemy, r.levelUp);
-      }
-      return;
-    }
-    case "confirm":
-      for (const t of resolveTargets(state, ctx, op.target)) {
-        if (t.kind !== "enemy") continue;
-        const r = confirmEnemy(state, t.enemy);
-        if (r.levelUp) onKnowledgeUp(state, t.enemy, 2);
       }
       return;
     case "reveal_intent":
@@ -360,8 +382,15 @@ function execute(state: GameState, item: QueuedEffect): void {
     case "combat_flag":
       c.flags[op.flag] = (c.flags[op.flag] ?? 0) + op.delta;
       return;
-    case "targeted_bonus":
-      for (const t of resolveTargets(state, ctx, op.target)) if (t.kind === "enemy") t.enemy.targetedBonus += op.pct;
+    case "plan_bonus":
+      for (const t of resolveTargets(state, ctx, op.target)) if (t.kind === "enemy") t.enemy.planBonus += op.pct;
+      return;
+    case "cancel_countdowns":
+      for (const t of resolveTargets(state, ctx, op.target ?? "self")) {
+        if (t.kind !== "enemy" || !t.enemy.countdowns.length) continue;
+        t.enemy.countdowns = [];
+        log(c, "info", `${diseaseLabel(t.enemy)}: 예고된 합병증이 사라졌다`);
+      }
       return;
     case "start_countdown":
       for (const t of resolveTargets(state, ctx, op.target ?? "self")) {
@@ -396,9 +425,172 @@ function execute(state: GameState, item: QueuedEffect): void {
     case "if":
       enqueueFront(state, evalCondition(state, ctx, op.cond) ? op.then : op.else ?? [], ctx);
       return;
-    case "delay":
-      c.delayed.push({ turnsLeft: op.turns, effects: op.effects, ctx });
+    case "delay": {
+      const d: DelayedEffect = { turnsLeft: op.turns, effects: op.effects, ctx };
+      if (op.label) d.label = op.label;
+      if (op.channel) d.channel = op.channel;
+      c.delayed.push(d);
+      if (op.label && ctx.targetUid) emit({ type: "result_pending", target: ctx.targetUid, label: op.label, turns: op.turns });
       return;
+    }
+    // ── 임상 결정 ──
+    case "choose_option":
+      openChoice(state, op, ctx);
+      return;
+    case "investigate": {
+      const e = decisionTarget(state, ctx, op.target);
+      if (e) observe(state, e, op.channel);
+      return;
+    }
+    case "investigate_best": {
+      const e = decisionTarget(state, ctx, op.target);
+      if (!e) return;
+      const chans = bestChannels(e, op.groups, op.count);
+      if (!chans.length) log(c, "info", "더 감별할 소견이 없다: 가설이 하나뿐이거나 모두 같은 소견을 보인다");
+      for (const ch of chans) observe(state, e, ch);
+      return;
+    }
+    case "culture": {
+      const e = decisionTarget(state, ctx, op.target);
+      if (!e) return;
+      const cx = `cx_${op.specimen}`;
+      const gs = `gs_${op.specimen}`;
+      if (isObserved(e, cx) || pendingChannels(state, e.uid).includes(cx)) {
+        log(c, "info", `${channelDef(cx).nameKo}: 이미 보낸 검체`);
+        return;
+      }
+      observe(state, e, gs);
+      if (op.delay <= 0) observe(state, e, cx);
+      else {
+        const label = channelDef(cx).nameKo;
+        c.delayed.push({ turnsLeft: op.delay, effects: [{ op: "investigate", channel: cx }], ctx: { ...ctx, targetUid: e.uid }, label, channel: cx });
+        emit({ type: "result_pending", target: e.uid, label, turns: op.delay });
+        log(c, "diag", `${label}: 결과는 ${op.delay}턴 뒤`);
+      }
+      return;
+    }
+    case "advance_results": {
+      const e = decisionTarget(state, ctx, op.target);
+      const due: QueuedEffect[] = [];
+      let n = 0;
+      for (const d of c.delayed) {
+        if (!d.channel || (e && d.ctx.targetUid !== e.uid)) continue;
+        d.turnsLeft -= op.turns;
+        n += 1;
+        if (d.turnsLeft <= 0) for (const x of d.effects) due.push({ op: x, ctx: d.ctx });
+      }
+      c.delayed = c.delayed.filter((d) => d.turnsLeft > 0);
+      if (!n) log(c, "info", "기다리는 검사 결과가 없다");
+      else log(c, "diag", "검사실에 결과를 재촉했다");
+      if (due.length) c.queue.unshift(...due);
+      return;
+    }
+    case "discover": {
+      const e = decisionTarget(state, ctx, op.target);
+      const defs = discoverDefs(state, e, op.pool, op.count);
+      if (!defs.some((d) => d.cardId)) {
+        log(c, "info", op.pool === "drug" ? "처방집에 쓸 만한 약이 없다" : "시술 목록이 비어 있다");
+        return;
+      }
+      const mode = e?.workingDx ? `작업 진단 ${diseaseDef(e.workingDx).nameKo}에 맞춰` : "감별 목록 전체를 고려해";
+      openChoice(
+        state,
+        {
+          op: "choose_option",
+          title: op.title ?? (op.pool === "drug" ? "투약 오더" : "시술 의뢰"),
+          prompt: `${mode} ${op.pool === "drug" ? "처방집" : "시술 목록"}에서 고른다. 고른 카드는 손으로 오고 이번 턴에는 비용 0`,
+          options: defs,
+        },
+        e ? { ...ctx, targetUid: e.uid } : ctx,
+      );
+      return;
+    }
+    case "consult": {
+      const e = decisionTarget(state, ctx, op.target);
+      openChoice(state, { op: "choose_option", title: "협진 의뢰", prompt: "어느 과에 의뢰할까", options: consultSpecialtyDefs(state, e, op.count) }, e ? { ...ctx, targetUid: e.uid } : ctx);
+      return;
+    }
+    case "consult_recommend": {
+      const defs = consultRecommendDefs(state, ctx, op.specialty, op.count);
+      openChoice(state, { op: "choose_option", title: `협진 회신`, prompt: "회신된 권고 중 하나를 따른다", options: defs }, ctx);
+      return;
+    }
+    case "procedure_decision": {
+      const defs = procedureDecisionDefs(state, ctx);
+      if (defs) openChoice(state, { op: "choose_option", prompt: "지금 시행할까, 확인할까, 미룰까", options: defs }, ctx);
+      return;
+    }
+    case "procedure_risk": {
+      const e = decisionTarget(state, ctx, op.target);
+      const ci = c.limbo.find((x) => x.uid === ctx.owner.id);
+      if (!ci) return;
+      const r = procedureRisk(e, cardDef(ci.cardId, ci.upgraded));
+      if (r.tier === "mid") {
+        log(c, "warn", "시술 중 경미한 합병증");
+        enqueueFront(state, [{ op: "lose_vitality", amount: 2 }], { owner: { kind: "system", id: "procedure" } });
+      } else if (r.tier === "high") {
+        log(c, "warn", "근거 없이 시행한 시술 — 합병증");
+        enqueueFront(state, [{ op: "lose_vitality", amount: 5 }, { op: "add_card", cardId: "procedural_complication", count: 1, dest: "discard" }], { owner: { kind: "system", id: "procedure" } });
+      }
+      return;
+    }
+    case "return_to_hand": {
+      const i = c.limbo.findIndex((x) => x.uid === ctx.owner.id);
+      if (i < 0) return;
+      const ci = c.limbo.splice(i, 1)[0]!;
+      ci.costZeroThisTurn = false;
+      addCardTo(state, ci, "hand");
+      log(c, "info", `${cardDef(ci.cardId).nameKo}: 보류 — 손으로 돌아왔다`);
+      return;
+    }
+    case "stop_drug_choice": {
+      const defs = stopDrugDefs(state);
+      if (!defs.length) {
+        log(c, "info", "투여 중인 약물이 없다");
+        return;
+      }
+      openChoice(state, { op: "choose_option", title: "투약 검토", prompt: "어느 약을 끊을까", options: defs, optional: true }, ctx);
+      return;
+    }
+    case "targeted_antibiotic": {
+      const e = decisionTarget(state, ctx, op.target);
+      const org = e?.organismKnown ? currentOrganism(e) : undefined;
+      if (!e || !org) {
+        log(c, "info", "원인균을 모른다: 배양 결과가 먼저다");
+        return;
+      }
+      const RANK: Record<string, number> = { key: 4, weak: 3, normal: 2, resistant: 1 };
+      let best: { id: string; score: number } | undefined;
+      for (const d of db().cards) {
+        const sp = d.drug?.spectrum;
+        if (!sp) continue;
+        const g = sp[org];
+        const r = g ? RANK[g] ?? 0 : 0;
+        if (r < 2) continue;
+        const score = r * 10 - (d.tags.includes("broad_spectrum") ? 5 : 0) - (d.tags.includes("nephrotoxic") ? 1 : 0);
+        if (!best || score > best.score) best = { id: d.id, score };
+      }
+      if (!best) {
+        log(c, "warn", "이 원인균에 듣는 항생제가 병원에 없다");
+        return;
+      }
+      addGeneratedCard(state, best.id, "hand");
+      log(c, "diag", `감수성 결과에 맞춰 ${cardDef(best.id).nameKo} 처방`);
+      return;
+    }
+    case "deescalate": {
+      const n = endDrugs(state, (d) => d.tags.includes("broad_spectrum"));
+      if (!n) {
+        log(c, "info", "중단할 광범위 항생제가 없다");
+        return;
+      }
+      if (c.enemies.some((e) => !e.cured && e.organismKnown)) {
+        state.run.stats.deescalations += 1;
+        log(c, "diag", "범위 축소: 원인균에 맞춘 치료로 바꾼다");
+        enqueueFront(state, [{ op: "exhaust_cards", from: ["hand", "draw", "discard"], filter: { ids: ["dysbiosis"] }, amount: "all" }, { op: "draw", amount: 1 }], ctx);
+      } else log(c, "warn", "원인균을 모른 채 광범위 항생제를 끊었다");
+      return;
+    }
     case "select_cards": {
       const candidates = op.from
         .flatMap((p) => pileOf(c, p))
@@ -471,13 +663,6 @@ function execute(state: GameState, item: QueuedEffect): void {
   }
 }
 
-function onKnowledgeUp(state: GameState, enemy: EnemyState, level: 1 | 2): void {
-  const c = state.combat!;
-  const def = diseaseDef(enemy.diseaseId);
-  log(c, "diag", level === 2 ? `확진: ${def.nameKo}` : `감별: ${db().categories[def.category]} 질환으로 좁혀짐`);
-  if (level === 2) fire(state, "knowledge_up", { targetUid: enemy.uid });
-}
-
 function execCustom(state: GameState, op: Extract<EffectOp, { op: "custom" }>, ctx: EffectCtx): void {
   const c = state.combat!;
   switch (op.id) {
@@ -528,6 +713,8 @@ function runPhase(state: GameState, name: TurnPhase, enemyUid?: string): void {
       c.orders = c.ordersPerTurn;
       c.counters.cardsPlayedThisTurn = 0;
       c.counters.drugsPlayedThisTurn = 0;
+      c.counters.returnsThisTurn = 0;
+      c.flags.ddxPickUsed = 0;
       emit({ type: "turn_started", turn: c.turn });
       log(c, "turn", `${c.turn}턴`);
       enqueueFront(

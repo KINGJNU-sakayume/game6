@@ -3,7 +3,7 @@
 [![CI](https://github.com/KINGJNU-sakayume/game6/actions/workflows/ci.yml/badge.svg)](https://github.com/KINGJNU-sakayume/game6/actions/workflows/ci.yml)
 [![Pages](https://github.com/KINGJNU-sakayume/game6/actions/workflows/pages.yml/badge.svg)](https://github.com/KINGJNU-sakayume/game6/actions/workflows/pages.yml)
 
-한 환자의 입원 경과를 끝까지 책임지는 의학 덱빌딩 로그라이크. 응급실 → 병동 → 중환자실의 임상 경로표를 따라가며, 진단 카드로 질병을 밝히고, 적응증·항생제 감수성·약물 상호작용을 따져 처방한다.
+한 환자의 입원 경과를 끝까지 책임지는 의학 덱빌딩 로그라이크. 응급실 → 병동 → 중환자실의 임상 경로표를 따라가며, 주호소에서 시작해 무엇을 물어보고 검사할지 고르고, 감별 목록에서 작업 진단을 정하고, 처방집에서 약과 시술을 불러 치료한다. 치료 반응이 다시 소견이 된다(안정화 → 감별 → 결정 → 치료 → 재평가).
 
 - 플레이(claude.ai 아티팩트): https://claude.ai/artifact/FYXQoyS9M8JZLScsfH7CjE (소유자에게 공유받은 사람만 열 수 있다)
 - 플레이(GitHub Pages): https://kingjnu-sakayume.github.io/game6/ (아래 "GitHub Actions"의 Pages 설정을 마친 뒤부터)
@@ -18,7 +18,7 @@ npm test                 # 단위·시나리오·결정론·퍼즈·콘텐츠·�
 npm run build:artifact   # 배포용 단일 HTML → dist-artifact/order-set.html
 ```
 
-그 밖의 명령(시뮬레이터, 재생 검증, 스크린숏)은 `docs/design.md` §7에 있다.
+그 밖의 명령(시뮬레이터·텔레메트리, 재생 검증, 스크린숏)은 `docs/design.md` §7에 있다.
 
 ## GitHub Actions
 
@@ -42,15 +42,16 @@ Pages 배포를 쓰려면 저장소 설정 두 가지가 필요하다(한 번만
 | 폴더 | 내용 |
 |---|---|
 | `src/core` | 결정론적 규칙 엔진. `step(state, action) → { state, events }`. DOM·난수·시간에 기대지 않는다 |
-| `src/content` | 카드 64장, 질병 27종, 상호작용 규칙, 유물, 이벤트 등 데이터 |
+| `src/content` | 카드 57장(행동 덱 18·처방집 39), 질병 27종, 내원 양상 24, 소견 221, 협진 10과, 상호작용 규칙, 유물, 이벤트 등 데이터 |
 | `src/ui` | React 화면. 병원 서식·환자 모니터·판독 라이트박스를 시각 언어로 쓴다 |
-| `src/sim` | 무작위·탐욕 봇, 밸런스 시뮬레이터, 재생 검증 |
+| `src/sim` | 무작위·판단(ClinicianBot) 봇, 밸런스 시뮬레이터와 결정 텔레메트리, 재생 검증 |
 | `tests` | 테스트. `tests/arch.test.ts`가 계층 경계를 검사한다 |
 | `scripts` | 아티팩트 빌드, 스크린숏, 클릭 연기 검사, 문서용 표 생성 |
 
 ## 문서
 
 - `docs/REVIEW.md` — 원 설계서(v1.0) 비판적 검토 40항목
-- `docs/design.md` — 수정 설계서 v1.1 (규칙, 아키텍처, 콘텐츠 전체 목록)
+- `docs/design.md` — 설계서 v2.0 (감별 진단·임상 결정·처방집, 아키텍처, 콘텐츠 목록)
+- `docs/design-v1.1.md` — 이전 설계서 (진단 포인트 모델, 보존본)
 - `docs/DECISIONS.md` — 구현하며 바꾸거나 새로 정한 것
 - `docs/PROGRESS.md` — 마일스톤별 확인 결과

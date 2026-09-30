@@ -1,6 +1,8 @@
 // 투여 중 약물, 상호작용 해석, 부작용 생성, DUR 미리보기. design.md D5
-import { cardDef, diseaseDef, interactionRules, relicDef } from "./registry";
+import { cardDef, diseaseDef, interactionRules, presentationDef, relicDef } from "./registry";
 import { gradeFor } from "./damage";
+import { cardTextbook } from "./textbook";
+import { observeResponse, scoreDifferential } from "./evidence";
 import { addGeneratedCard } from "./cards";
 import { fire } from "./triggers";
 import { evalCondition, evalValue } from "./values";
@@ -53,7 +55,7 @@ function evaluateRules(state: GameState, incoming: CardDef, ctx: EffectCtx, know
     let hit: FiredRule | undefined;
     const condOk = (): { ok: boolean; conditional: boolean } => {
       if (!rule.condition) return { ok: true, conditional: false };
-      if (knowledgeAware && conditionUsesTarget(rule.condition) && (!target || target.knowledge < 1)) return { ok: true, conditional: true };
+      if (knowledgeAware && conditionUsesTarget(rule.condition) && (!target || target.knowledge < 2)) return { ok: true, conditional: true };
       return { ok: evalCondition(state, ctx, rule.condition), conditional: false };
     };
     if (!rule.active) {
@@ -95,9 +97,9 @@ export function harmfulResponse(state: GameState, enemy: EnemyState, d1: number,
   log(c, "warn", `금기! ${sourceName} → ${diseaseLabel(enemy)} 악화 (중증도 +${enemy.severity - before})`);
 }
 
+/** 기록·화면용 이름: 확진 전에는 주호소 (플레이어 정보) */
 export function diseaseLabel(enemy: EnemyState): string {
-  const def = diseaseDef(enemy.diseaseId);
-  return enemy.knowledge >= 2 ? def.nameKo : def.presentation.complaint;
+  return enemy.knowledge >= 2 ? diseaseDef(enemy.workingDx ?? enemy.diseaseId).nameKo : presentationDef(enemy.presentationId).complaint;
 }
 
 function firstDamageBase(state: GameState, def: CardDef, ctx: EffectCtx): number {
@@ -124,14 +126,25 @@ export function administer(state: GameState, cardUid: Uid, ctx: EffectCtx): void
     c.activeDrugs.push({ uid: `d${c.drugOrder}`, cardId: def.id, tags: def.tags, turnsLeft: halfLife, order: c.drugOrder, upgraded: ci.upgraded });
     c.drugOrder += 1;
   }
-  emit({ type: "drug_administered", cardId: def.id, refreshed: !!existing });
+  // 항생제: 원인균을 배양으로 확인하기 전이면 경험적, 뒤면 표적 치료
+  let empiric: boolean | undefined;
+  if (def.drug.spectrum) {
+    const tgt = findEnemy(c, ctx.targetUid);
+    empiric = !(tgt?.organismKnown ?? false);
+    if (empiric) state.run.stats.abxEmpiric += 1;
+    else state.run.stats.abxTargeted += 1;
+  }
+  emit({ type: "drug_administered", cardId: def.id, refreshed: !!existing, ...(empiric !== undefined ? { empiric } : {}) });
   if (def.tags.includes("fluid")) c.counters.fluidsGiven = (c.counters.fluidsGiven ?? 0) + 1;
 
-  // 전신 금기: 투여되는 순간 모든 적에 대해 판정한다
+  // 전신 금기: 투여되는 순간 모든 적에 대해 판정한다. 악화는 곧 소견이다
   const d1 = firstDamageBase(state, def, ctx);
   for (const enemy of livingEnemies(c)) {
     const g = gradeFor(enemy, def.tags, def.drug.spectrum);
-    if (g.harmful) harmfulResponse(state, enemy, d1, def.nameKo);
+    if (g.harmful) {
+      harmfulResponse(state, enemy, d1, def.nameKo);
+      observeResponse(state, enemy, def.id, def.tags, "worse", def.nameKo);
+    }
   }
 
   // drug_administered 트리거 (먼저 넣고, 상호작용 효과를 그 앞에 넣는다)
@@ -250,11 +263,20 @@ export function previewInteractions(state: GameState, cardUid: Uid, targetUid?: 
     if (blockedByDur) durAvailable = false;
     out.push({ ruleId: f.rule.id, kind: f.rule.kind, text: f.rule.text, conditional: f.conditional, blockedByDur });
   }
+  // 금기 경고: 감별 목록에서 배제되지 않은 가설 중 이 약이 금기인 것 (교과서, 플레이어 정보)
   for (const enemy of livingEnemies(c)) {
-    if (enemy.knowledge < 1) continue;
-    const g = gradeFor(enemy, def.tags, def.drug.spectrum);
-    if (g.harmful && (!g.dependsOnVariant || enemy.knowledge >= 2)) {
-      out.push({ ruleId: "금기", kind: "contraindication", text: `${diseaseLabel(enemy)}에 금기: 투여하면 악화된다` });
+    for (const r of scoreDifferential(enemy)) {
+      if (r.ruledOut) continue;
+      const tb = cardTextbook(r.diseaseId, def);
+      if (!tb.harmful) continue;
+      const name = diseaseDef(r.diseaseId).nameKo;
+      const where = c.enemies.length > 1 ? `${presentationDef(enemy.presentationId).complaint} — ` : "";
+      out.push({
+        ruleId: "금기",
+        kind: "contraindication",
+        text: `${where}${name}${tb.varies ? "(원인균에 따라)" : ""}이면 금기: 투여하면 악화된다`,
+        conditional: r.level !== "strong",
+      });
     }
   }
   return out;

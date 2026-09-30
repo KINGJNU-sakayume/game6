@@ -1,7 +1,6 @@
-// 질병의 현재 상태(변이·단계 반영)와 진단. design.md D3
+// 질병의 현재 상태(변이·단계 반영). 모두 엔진 진실이다. 플레이어 정보는 evidence.ts가 만든다.
 import { diseaseDef } from "./registry";
-import { emit, modifierValue } from "./util";
-import type { AiPattern, DiseaseDef, EnemyState, GameState, Grade, MoveDef, OrganismId, Tag, Trait } from "./types";
+import type { AiPattern, DiseaseDef, EnemyState, Grade, MoveDef, OrganismId, Tag, Trait } from "./types";
 
 export function phaseDef(enemy: EnemyState) {
   const def = diseaseDef(enemy.diseaseId);
@@ -76,48 +75,4 @@ export function currentAi(enemy: EnemyState): AiPattern {
   const ph = phaseDef(enemy);
   if (ph?.ai) return ph.ai;
   return diseaseDef(enemy.diseaseId).ai;
-}
-
-export function knowledgeFor(def: DiseaseDef, points: number): 0 | 1 | 2 {
-  if (points >= def.diagnosis.confirmAt) return 2;
-  if (points >= def.diagnosis.partialAt) return 1;
-  return 0;
-}
-
-export interface DiagnoseResult {
-  levelUp: 0 | 1 | 2;
-}
-
-/** 진단 포인트를 더한다. 단계가 오르면 이벤트를 내고, 확진이면 증례집에 적는다. */
-export function addDiagnosis(state: GameState, enemy: EnemyState, points: number): DiagnoseResult {
-  if (points <= 0 || enemy.cured) return { levelUp: 0 };
-  const bonus = modifierValue(state, "diagnoseBonus").reduce((a, m) => a + m.value, 0);
-  const def = diseaseDef(enemy.diseaseId);
-  const before = enemy.knowledge;
-  enemy.diagnosisPoints += points + bonus;
-  const after = knowledgeFor(def, enemy.diagnosisPoints);
-  emit({ type: "diagnosed", target: enemy.uid, points: points + bonus });
-  if (after > before) {
-    enemy.knowledge = after;
-    emit({ type: "knowledge_up", target: enemy.uid, level: after as 1 | 2 });
-    if (after === 2) {
-      state.run.casebook[enemy.diseaseId] = "confirmed";
-      state.run.stats.diagnosesConfirmed += 1;
-    }
-    return { levelUp: after as 1 | 2 };
-  }
-  return { levelUp: 0 };
-}
-
-export function confirmEnemy(state: GameState, enemy: EnemyState): DiagnoseResult {
-  const def = diseaseDef(enemy.diseaseId);
-  const need = def.diagnosis.confirmAt - enemy.diagnosisPoints;
-  if (need <= 0) return { levelUp: 0 };
-  const before = enemy.knowledge;
-  enemy.diagnosisPoints = def.diagnosis.confirmAt;
-  enemy.knowledge = 2;
-  emit({ type: "knowledge_up", target: enemy.uid, level: 2 });
-  state.run.casebook[enemy.diseaseId] = "confirmed";
-  state.run.stats.diagnosesConfirmed += 1;
-  return { levelUp: before < 2 ? 2 : 0 };
 }
