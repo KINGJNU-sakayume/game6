@@ -1,4 +1,4 @@
-# 검사 → 브라우저 검사 → (기본 브랜치이고 Pages가 켜져 있으면) GitHub Pages 배포
+# 검사 → 브라우저 검사. 기본 브랜치에서 통과하면 pages.yml이 GitHub Pages에 배포한다.
 name: CI
 
 on:
@@ -80,58 +80,3 @@ jobs:
           name: screenshots
           path: shots/
           retention-days: 14
-
-  pages-check:
-    name: GitHub Pages 설정 확인
-    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
-    runs-on: ubuntu-latest
-    permissions:
-      pages: read
-    outputs:
-      enabled: ${{ steps.pages.outputs.enabled }}
-    steps:
-      - id: pages
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          build_type=$(gh api "repos/${{ github.repository }}/pages" --jq .build_type 2>/dev/null || true)
-          if [ "$build_type" = "workflow" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=GitHub Pages 배포 건너뜀::Settings → Pages → Build and deployment → Source를 'GitHub Actions'로 바꾸면 다음 실행부터 배포된다."
-            {
-              echo "### GitHub Pages 배포를 건너뛰었다"
-              echo
-              echo "저장소 Settings → Pages → Build and deployment → Source를 **GitHub Actions**로 바꾼 뒤,"
-              echo "Actions 탭에서 이 워크플로를 다시 실행(Run workflow)하거나 새로 푸시하면 배포된다."
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-  deploy:
-    name: GitHub Pages 배포
-    needs: [check, browser, pages-check]
-    if: needs.pages-check.outputs.enabled == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      - run: npx vite build
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-      - id: deployment
-        uses: actions/deploy-pages@v4

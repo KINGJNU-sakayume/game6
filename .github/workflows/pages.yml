@@ -1,0 +1,80 @@
+# 기본 브랜치에서 CI가 통과한 커밋을 GitHub Pages에 배포한다. Actions 탭에서 손으로 다시 돌릴 수도 있다.
+# 한 번만 설정: Settings → Pages → Source를 "GitHub Actions"로, Settings → Environments → github-pages의
+# "Deployment branches and tags"에 배포할 브랜치(기본 브랜치)를 허용한다.
+name: Pages
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  pages-check:
+    name: GitHub Pages 설정 확인
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    permissions:
+      pages: read
+    outputs:
+      enabled: ${{ steps.pages.outputs.enabled }}
+    steps:
+      - id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          build_type=$(gh api "repos/${{ github.repository }}/pages" --jq .build_type 2>/dev/null || true)
+          if [ "$build_type" = "workflow" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=GitHub Pages 배포 건너뜀::Settings → Pages → Build and deployment → Source를 'GitHub Actions'로 바꾸면 다음 실행부터 배포된다."
+            {
+              echo "### GitHub Pages 배포를 건너뛰었다"
+              echo
+              echo "저장소 Settings → Pages → Build and deployment → Source를 **GitHub Actions**로 바꾼 뒤,"
+              echo "Actions 탭의 Pages 워크플로에서 Run workflow를 누르거나 새로 푸시하면 배포된다."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  deploy:
+    name: GitHub Pages 배포
+    needs: pages-check
+    if: needs.pages-check.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # CI가 검사한 바로 그 커밋을 배포한다
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx vite build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
