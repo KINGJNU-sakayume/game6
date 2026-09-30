@@ -1,5 +1,7 @@
 // 런 구조: 시작, 지도 이동, 보상, 상점, 당직실, 이벤트, 막 전환. design.md D7
-import { cardDef, db, diseaseDef, encounterDef, eventDef, hasCard, quizDef, relicDef } from "./registry";
+import { cardDef, db, diseaseDef, encounterDef, eventDef, hasCard, presentationDef, quizDef, relicDef } from "./registry";
+import { cardTextbook } from "./textbook";
+import { variantDef } from "./disease";
 import { startCombat } from "./combat";
 import { actFloors, generateMap } from "./map";
 import { deriveStream, pickOne, pickWeighted, randInt, randRange, shuffleInPlace } from "./rng";
@@ -7,12 +9,15 @@ import { emit, hasRelic, modifierValue, newUid } from "./util";
 import type {
   CardId,
   CardInstance,
+  CaseSummary,
   EncounterDef,
   GameState,
   NodeType,
   Rarity,
   RelicId,
+  RewardCardOption,
   RewardItem,
+  RewardSlot,
   RewardState,
   RunOp,
   RunRngStream,
@@ -27,13 +32,14 @@ export const START_GOLD = 99;
 
 export interface RunOptions {
   deck?: CardId[];
+  formulary?: CardId[];
   relics?: RelicId[];
 }
 
 export function newRun(seed: string, options: RunOptions = {}): GameState {
   const rng = Object.fromEntries(RUN_STREAMS.map((s) => [s, deriveStream(`${seed}:${s}`)])) as GameState["rng"];
   const state: GameState = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     seed,
     rng,
     phase: "map",
@@ -45,6 +51,7 @@ export function newRun(seed: string, options: RunOptions = {}): GameState {
       maxVitality: START_VITALITY,
       gold: START_GOLD,
       deck: [],
+      formulary: [],
       relics: [],
       casebook: {},
       rarePity: 0,
@@ -66,6 +73,20 @@ export function newRun(seed: string, options: RunOptions = {}): GameState {
         diagnosesConfirmed: 0,
         harmfulTreatments: 0,
         floorsClimbed: 0,
+        modalDecisions: 0,
+        optionPicks: {},
+        findingsRevealed: 0,
+        commits: 0,
+        commitsCorrect: 0,
+        revisions: 0,
+        commitTurnSum: 0,
+        finalDx: 0,
+        finalDxCorrect: 0,
+        abxEmpiric: 0,
+        abxTargeted: 0,
+        deescalations: 0,
+        returns: 0,
+        noResponse: 0,
       },
       seenEvents: [],
     },
@@ -74,6 +95,7 @@ export function newRun(seed: string, options: RunOptions = {}): GameState {
   };
   const deck = options.deck ?? db().starterDeck;
   state.run.deck = deck.map((id) => ({ uid: newUid(state), cardId: id, upgraded: false }));
+  state.run.formulary = (options.formulary ?? db().starterFormulary).map((id) => ({ uid: newUid(state), cardId: id, upgraded: false }));
   state.run.relics = (options.relics ?? [db().starterRelic]).map((id) => ({ id }));
   return state;
 }
@@ -150,37 +172,117 @@ function enterNode(state: GameState, type: NodeType): void {
 
 // ───────────────────────── 보상 ─────────────────────────
 
-function rewardPool(rarity: Rarity): CardId[] {
-  return db()
-    .cards.filter((c) => c.rarity === rarity && c.kind !== "side_effect")
-    .map((c) => c.id);
+function zoneOf(id: CardId): "deck" | "formulary" {
+  return cardDef(id).zone ?? "deck";
 }
 
-function rollRarity(state: GameState, source: RewardState["source"] | "shop"): Rarity {
-  const r = state.rng.reward;
-  if (source === "boss" || source === "gate") return "rare";
-  if (source === "shop") return pickWeighted(state.rng.shop, [["common", 50], ["uncommon", 38], ["rare", 12]] as const);
-  if (source === "elite") {
-    const p = Math.min(30, state.run.rarePity);
-    return pickWeighted(r, [["common", 50 - p], ["uncommon", 40], ["rare", 10 + p]] as const);
+/** 보상·상점에 나올 수 있는 카드 (부작용·시작·특수 제외) */
+function offerable(id: CardId): boolean {
+  const d = cardDef(id);
+  return d.kind !== "side_effect" && d.rarity !== "starter" && d.rarity !== "special";
+}
+
+/** 이번(과 다음) 막의 환자에게 쓸모 있는 정도: 감별 대상이 될 수 있는 질병 중 교과서상 듣는 수 */
+export function actDiseases(act: 1 | 2 | 3): string[] {
+  const out = new Set<string>();
+  for (const e of db().encounters) {
+    if (e.act !== act) continue;
+    for (const p of e.problems) for (const c of presentationDef(p.presentation).candidates) out.add(c.disease);
   }
-  const p = Math.min(37, state.run.rarePity);
-  return pickWeighted(r, [["common", 60 - p], ["uncommon", 37], ["rare", 3 + p]] as const);
+  return [...out];
 }
 
-export function generateCardChoices(state: GameState, source: RewardState["source"]): CardId[] {
+export function contextRelevance(state: GameState, id: CardId, acts: (1 | 2 | 3)[]): number {
+  const def = cardDef(id);
+  let v = 0;
+  const diseases = new Set(acts.flatMap((a) => actDiseases(a)));
+  for (const d of diseases) {
+    const tb = cardTextbook(d, def);
+    if (tb.generic || tb.harmful) continue;
+    if (tb.best === "key") v += 3;
+    else if (tb.best === "weak") v += 2;
+    else if (tb.best === "normal") v += 1;
+  }
+  if (v === 0 && def.kind === "drug") {
+    // 부작용 관리 약: 가진 약의 부작용을 정리하면 쓸모가 있다
+    const purge = new Set<string>();
+    const walk = (ops: typeof def.effects) => {
+      for (const op of ops) if (op.op === "exhaust_cards") for (const x of op.filter.ids ?? []) purge.add(x);
+    };
+    walk(def.effects);
+    const owned = [...state.run.formulary, ...state.run.deck].map((c) => cardDef(c.cardId));
+    if (owned.some((o) => (o.drug?.sideEffects ?? []).some((se) => purge.has(se.card)))) v = 1;
+  }
+  return v;
+}
+
+function ownedFormulary(state: GameState): Set<CardId> {
+  return new Set(state.run.formulary.map((c) => c.cardId));
+}
+
+const SLOT_RARITY: Record<RewardState["source"] | "shop", Record<RewardSlot, [Rarity, number][]>> = {
+  normal: { general: [["common", 75], ["uncommon", 25]], context: [["common", 55], ["uncommon", 40], ["rare", 5]], special: [["uncommon", 85], ["rare", 15]] },
+  elite: { general: [["common", 50], ["uncommon", 50]], context: [["common", 35], ["uncommon", 50], ["rare", 15]], special: [["uncommon", 65], ["rare", 35]] },
+  gate: { general: [["uncommon", 100]], context: [["uncommon", 50], ["rare", 50]], special: [["rare", 100]] },
+  boss: { general: [["uncommon", 100]], context: [["uncommon", 50], ["rare", 50]], special: [["rare", 100]] },
+  treasure: { general: [["common", 100]], context: [["common", 100]], special: [["uncommon", 100]] },
+  shop: { general: [["common", 70], ["uncommon", 30]], context: [["common", 50], ["uncommon", 40], ["rare", 10]], special: [["uncommon", 70], ["rare", 30]] },
+};
+
+/**
+ * 한 칸의 카드를 고른다.
+ * - general: 처방 목록(행동 덱) 카드. 진단·안정화·순환 등 어디서나 쓸모
+ * - context: 처방집 추가. 이번 막(막 끝이면 다음 막) 환자에게 듣는 것만, 쓸모에 비례해 뽑는다
+ * - special: 빌드를 정하는 고급·희귀 카드 (행동 덱 또는 희귀 처방집)
+ */
+function pickSlot(state: GameState, source: RewardState["source"] | "shop", slot: RewardSlot, taken: Set<CardId>, rng = state.rng.reward): CardId | undefined {
+  const run = state.run;
+  const acts: (1 | 2 | 3)[] = [run.act];
+  if (run.act < 3 && (source === "boss" || source === "gate" || run.floor >= actFloors(run.act) - 2)) acts.push((run.act + 1) as 2 | 3);
+  const owned = ownedFormulary(state);
+  const all = db().cards.filter((c) => offerable(c.id) && !taken.has(c.id));
+  let rarityTable = SLOT_RARITY[source][slot];
+  if (slot === "special" && (source === "normal" || source === "elite")) {
+    const p = Math.min(30, run.rarePity);
+    rarityTable = rarityTable.map(([r, w]) => [r, r === "rare" ? w + p : Math.max(5, w - p)] as [Rarity, number]);
+  }
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const rarity = pickWeighted(rng, rarityTable);
+    let pool: [CardId, number][] = [];
+    if (slot === "general") pool = all.filter((c) => zoneOf(c.id) === "deck" && c.rarity === rarity).map((c) => [c.id, 1]);
+    else if (slot === "context")
+      pool = all
+        .filter((c) => zoneOf(c.id) === "formulary" && c.rarity === rarity && !owned.has(c.id))
+        .map((c) => [c.id, contextRelevance(state, c.id, acts)] as [CardId, number])
+        .filter(([, w]) => w > 0);
+    else
+      pool = all
+        .filter((c) => c.rarity === rarity && (zoneOf(c.id) === "deck" ? c.rarity !== "common" : !owned.has(c.id) && contextRelevance(state, c.id, acts) > 0))
+        .map((c) => [c.id, zoneOf(c.id) === "deck" ? 3 : 1]);
+    if (!pool.length) continue;
+    const id = pickWeighted(rng, pool);
+    if (slot === "special" && (source === "normal" || source === "elite") && rng === state.rng.reward) {
+      if (cardDef(id).rarity === "rare") run.rarePity = 0;
+      else run.rarePity += 1;
+    }
+    return id;
+  }
+  // 처방집을 다 모았거나 칸이 비면 행동 덱 카드로 채운다
+  const fallback = all.filter((c) => zoneOf(c.id) === "deck" && c.rarity !== "rare");
+  return fallback.length ? pickOne(rng, fallback).id : undefined;
+}
+
+export function generateCardChoices(state: GameState, source: RewardState["source"]): RewardCardOption[] {
   const choicesMod = modifierValue(state, "cardRewardChoices");
   const n = choicesMod.length ? Math.min(...choicesMod.map((m) => m.value)) : 3;
-  const out: CardId[] = [];
-  for (let i = 0; i < n; i++) {
-    const rarity = rollRarity(state, source);
-    if (source === "normal" || source === "elite") {
-      if (rarity === "rare") state.run.rarePity = 0;
-      else if (rarity === "common") state.run.rarePity += 1;
-    }
-    const pool = rewardPool(rarity).filter((id) => !out.includes(id));
-    if (!pool.length) continue;
-    out.push(pickOne(state.rng.reward, pool));
+  const slots: RewardSlot[] = (["general", "context", "special"] as RewardSlot[]).slice(0, n);
+  const taken = new Set<CardId>();
+  const out: RewardCardOption[] = [];
+  for (const slot of slots) {
+    const id = pickSlot(state, source, slot, taken);
+    if (!id) continue;
+    taken.add(id);
+    out.push({ cardId: id, slot });
   }
   return out;
 }
@@ -205,9 +307,22 @@ export function gainRelic(state: GameState, id: RelicId): void {
   emit({ type: "relic_gained", relicId: id });
 }
 
+/** 카드 획득: 약물·결정적 시술은 처방집에, 나머지는 처방 목록(행동 덱)에 */
 export function gainCard(state: GameState, cardId: CardId, upgraded = false): void {
-  state.run.deck.push({ uid: newUid(state), cardId, upgraded });
-  emit({ type: "card_gained", cardId });
+  const zone = zoneOf(cardId);
+  if (zone === "formulary") {
+    const have = state.run.formulary.find((c) => c.cardId === cardId);
+    if (have) {
+      // 이미 있으면 최적화된 판으로 바꾼다
+      if (!have.upgraded) {
+        have.upgraded = true;
+        emit({ type: "card_upgraded", cardId });
+      }
+      return;
+    }
+    state.run.formulary.push({ uid: newUid(state), cardId, upgraded });
+  } else state.run.deck.push({ uid: newUid(state), cardId, upgraded });
+  emit({ type: "card_gained", cardId, zone });
 }
 
 /** 전투 승리 후 보상 단계로 */
@@ -223,6 +338,19 @@ export function finishCombatVictory(state: GameState): void {
   }
   state.run.stats.combatsWon += 1;
   state.run.combatsThisAct += 1;
+  // 퇴원 요약: 전투가 끝났으니 실제 진단을 공개한다
+  const summary: CaseSummary[] = c.enemies.map((e) => {
+    if (e.workingDx) {
+      state.run.stats.finalDx += 1;
+      if (e.workingDx === e.diseaseId) state.run.stats.finalDxCorrect += 1;
+    }
+    const v = variantDef(e);
+    const row: CaseSummary = { complaint: presentationDef(e.presentationId).complaint, diseaseId: e.diseaseId, confirmed: e.knowledge >= 2, findings: e.observations.length };
+    if (v) row.variantName = v.nameKo;
+    if (e.workingDx) row.workingDx = e.workingDx;
+    if (!state.run.casebook[e.diseaseId]) state.run.casebook[e.diseaseId] = "confirmed";
+    return row;
+  });
   emit({ type: "combat_won" });
   state.combat = undefined;
   state.pending = undefined;
@@ -240,7 +368,7 @@ export function finishCombatVictory(state: GameState): void {
     const relic = rollRelic(state, "elite");
     if (relic) items.push({ kind: "relic", relicId: relic, taken: false });
   }
-  state.reward = { source, items };
+  state.reward = { source, items, summary };
   state.phase = "reward";
   emit({ type: "reward_offered" });
 }
@@ -254,9 +382,9 @@ export function claimReward(state: GameState, index: number, choice?: number): s
     emit({ type: "gold_changed", amount: item.amount });
   } else if (item.kind === "relic") gainRelic(state, item.relicId);
   else {
-    const id = item.options[choice ?? -1];
-    if (!id) return "카드를 골라야 한다";
-    gainCard(state, id);
+    const opt = item.options[choice ?? -1];
+    if (!opt) return "카드를 골라야 한다";
+    gainCard(state, opt.cardId);
   }
   item.taken = true;
   return null;
@@ -334,15 +462,14 @@ function generateShop(state: GameState): void {
   const s = state.rng.shop;
   const cards: { slot: string; cardId: CardId; price: number; sold: boolean }[] = [];
   const taken = new Set<CardId>();
-  for (let i = 0; i < 5; i++) {
-    const rarity = rollRarity(state, "shop");
-    const pool = rewardPool(rarity).filter((id) => !taken.has(id));
-    if (!pool.length) continue;
-    const id = pickOne(s, pool);
+  const plan: RewardSlot[] = ["general", "general", "context", "context", "special"];
+  plan.forEach((slot, i) => {
+    const id = pickSlot(state, "shop", slot, taken, s);
+    if (!id) return;
     taken.add(id);
-    const base = BASE_PRICE[rarity] ?? 60;
+    const base = BASE_PRICE[cardDef(id).rarity] ?? 60;
     cards.push({ slot: `c${i}`, cardId: id, price: Math.floor((base * randRange(s, 90, 110)) / 100), sold: false });
-  }
+  });
   const relics: { slot: string; relicId: RelicId; price: number; sold: boolean }[] = [];
   const owned = ownedRelics(state);
   for (let i = 0; i < 2; i++) {
@@ -413,7 +540,7 @@ export function restChoose(state: GameState, option: "rest" | "upgrade" | "purge
 }
 
 function upgradableCards(state: GameState): Uid[] {
-  return state.run.deck
+  return [...state.run.deck, ...state.run.formulary]
     .filter((c) => !c.upgraded && cardDef(c.cardId).kind !== "side_effect" && hasUpgrade(c.cardId))
     .map((c) => c.uid);
 }
@@ -438,7 +565,7 @@ export function resolveDeckSelection(state: GameState, uids: Uid[]): string | nu
   switch (p.purpose) {
     case "upgrade":
       for (const u of uniq) {
-        const ci = deck.find((c) => c.uid === u);
+        const ci = deck.find((c) => c.uid === u) ?? state.run.formulary.find((c) => c.uid === u);
         if (ci) {
           ci.upgraded = true;
           emit({ type: "card_upgraded", cardId: ci.cardId });
@@ -540,7 +667,10 @@ export function applyRunOps(state: GameState, ops: RunOp[]): void {
         run.vitality = Math.max(1, run.vitality - op.amount);
         break;
       case "gain_random_card": {
-        const pool = db().cards.filter((c) => c.rarity === op.rarity && (!op.kind || c.kind === op.kind));
+        const owned = ownedFormulary(state);
+        const pool = db().cards.filter(
+          (c) => offerable(c.id) && c.rarity === op.rarity && (!op.kind || c.kind === op.kind) && (!op.zone || zoneOf(c.id) === op.zone) && !(zoneOf(c.id) === "formulary" && owned.has(c.id)),
+        );
         if (pool.length) gainCard(state, pickOne(rng, pool).id);
         break;
       }
@@ -550,7 +680,7 @@ export function applyRunOps(state: GameState, ops: RunOp[]): void {
         break;
       }
       case "upgrade_random": {
-        const cands = run.deck.filter(
+        const cands = [...run.deck, ...run.formulary].filter(
           (c) => !c.upgraded && cardDef(c.cardId).kind !== "side_effect" && hasUpgrade(c.cardId) && (!op.kind || cardDef(c.cardId).kind === op.kind),
         );
         shuffleInPlace(rng, cands);

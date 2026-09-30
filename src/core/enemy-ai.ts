@@ -1,10 +1,10 @@
 // 질병 행동 선택과 의도 계산. design.md §4.3
-import { cardDef, diseaseDef, statusDef } from "./registry";
+import { cardDef, diseaseDef, presentationDef, statusDef } from "./registry";
 import { currentAi, findMove } from "./disease";
 import { calcEnemyAttack } from "./damage";
 import { pickWeighted, randRange } from "./rng";
 import { evalCondition } from "./values";
-import type { Condition, EffectOp, EnemyState, GameState, IntentPart, MoveDef, PlannedMove } from "./types";
+import type { Condition, EffectOp, EnemyState, GameState, IntentPart, MoveDef, PlannedMove, PressureKind } from "./types";
 
 function startsCountdown(move: MoveDef): boolean {
   return move.effects.some((op) => op.op === "start_countdown");
@@ -139,4 +139,55 @@ export function moveName(enemy: EnemyState, moveId: string): string {
 
 export function diseaseTier(enemy: EnemyState) {
   return diseaseDef(enemy.diseaseId).tier;
+}
+
+export const PRESSURE_LABEL: Record<PressureKind, string> = {
+  hemodynamic: "혈압·순환 악화",
+  respiratory: "호흡 악화",
+  airway: "기도 위협",
+  bleeding: "출혈 진행",
+  neuro: "의식·신경 악화",
+  metabolic: "대사 악화",
+  infection: "염증 진행",
+  cardiac: "심장 부담·부정맥 위험",
+  renal: "신기능 악화",
+  pain: "통증·불안정",
+  worsening: "병세 진행",
+  complication: "합병증 예고",
+};
+
+const STATUS_PRESSURE: Record<string, PressureKind> = {
+  hypotension: "hemodynamic",
+  dehydration: "hemodynamic",
+  hypoxia: "respiratory",
+  vulnerable: "hemodynamic",
+  weak: "pain",
+};
+const CARD_PRESSURE: Record<string, PressureKind> = {
+  bleeding: "bleeding",
+  confusion: "neuro",
+  hyperkalemia: "renal",
+  nausea: "metabolic",
+};
+
+/**
+ * 행동의 임상적 압박. 행동에 적힌 값 → 효과에서 끌어낸 값 → 내원 양상의 기본값 순서.
+ * 마지막 기본값을 실제 질병의 분류가 아니라 내원 양상에서 가져와, 표시가 숨겨진 진단을 드러내지 않게 한다.
+ */
+export function movePressure(enemy: EnemyState, move: MoveDef): PressureKind {
+  if (move.pressure) return move.pressure;
+  let found: PressureKind | undefined;
+  const walk = (ops: EffectOp[]) => {
+    for (const op of ops) {
+      if (found) return;
+      if (op.op === "start_countdown" || op.op === "enter_phase") found = "complication";
+      else if (op.op === "apply_status" && op.target === "patient") found = STATUS_PRESSURE[op.status];
+      else if (op.op === "add_card") found = CARD_PRESSURE[op.cardId];
+      else if (op.op === "apply_status" && op.status === "inflammation") found = "infection";
+      else if (op.op === "raise_max_severity" || (op.op === "apply_status" && (op.status === "aggravation" || op.status === "acidosis"))) found = "worsening";
+      else if (op.op === "if") walk(op.then);
+    }
+  };
+  walk(move.effects);
+  return found ?? presentationDef(enemy.presentationId).pressure ?? "worsening";
 }

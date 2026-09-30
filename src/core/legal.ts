@@ -1,6 +1,6 @@
 // 합법 행동 목록. 봇과 UI 활성화에 공용.
 import { cardDef, eventDef } from "./registry";
-import { canPlay } from "./combat";
+import { canPlay, commitCheck, returnCheck } from "./combat";
 import { availableNodes } from "./run";
 import type { Action, GameState } from "./types";
 
@@ -8,6 +8,11 @@ export function legalActions(state: GameState): Action[] {
   const out: Action[] = [];
   if (state.phase === "gameover" || state.phase === "victory") return out;
   const p = state.pending;
+  if (p?.kind === "choose_option") {
+    for (const o of p.options) if (o.available) out.push({ type: "choose_option", optionId: o.id });
+    if (p.canSkip) out.push({ type: "choose_option", optionId: "skip" });
+    return out;
+  }
   if (p) {
     // 봇용: 최소 개수만큼 앞에서부터 고르는 선택과, 가능하면 빈 선택
     if (p.min === 0) out.push({ type: "choose_cards", uids: [] });
@@ -24,6 +29,11 @@ export function legalActions(state: GameState): Action[] {
         if (def.target === "enemy" && def.cost !== "unplayable") {
           for (const e of c.enemies) if (!e.cured && canPlay(state, ci.uid, e.uid).ok) out.push({ type: "play_card", cardUid: ci.uid, targetUid: e.uid });
         } else if (canPlay(state, ci.uid).ok) out.push({ type: "play_card", cardUid: ci.uid });
+        if (returnCheck(state, ci.uid).ok) out.push({ type: "return_card", cardUid: ci.uid });
+      }
+      for (const e of c.enemies) {
+        if (e.cured) continue;
+        for (const h of e.hypotheses) if (commitCheck(state, e.uid, h).ok) out.push({ type: "commit_diagnosis", targetUid: e.uid, diseaseId: h });
       }
       out.push({ type: "end_turn" });
       return out;

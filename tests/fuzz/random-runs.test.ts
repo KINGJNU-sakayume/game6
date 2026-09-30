@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import "../helpers";
 import { checkInvariants, newRun, step } from "../../src/core";
 import { RandomBot } from "../../src/sim/bots/random";
-import { GreedyBot } from "../../src/sim/bots/greedy";
+import { ClinicianBot } from "../../src/sim/bots/clinician";
 
 const N = process.env.FUZZ_LONG ? 200 : 40;
 
@@ -26,7 +26,7 @@ describe("퍼즈", () => {
     for (let i = 0; i < 6; i++) {
       const seed = `fzg-${i}`;
       let s = newRun(seed);
-      const bot = new GreedyBot(seed, 150);
+      const bot = new ClinicianBot(seed, 150);
       for (let k = 0; k < 6000 && s.phase !== "gameover" && s.phase !== "victory"; k++) {
         s = step(s, bot.choose(s)).state;
         expect(checkInvariants(s)).toEqual([]);

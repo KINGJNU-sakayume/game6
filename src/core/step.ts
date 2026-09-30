@@ -1,5 +1,5 @@
 // 진입점: step(state, action) → { state, events }. design.md §3.3–3.4
-import { endTurn, playCard, resolveCardSelection } from "./combat";
+import { chooseOption, commitDiagnosis, endTurn, playCard, resolveCardSelection, returnCard } from "./combat";
 import {
   claimReward,
   eventChoose,
@@ -23,7 +23,7 @@ export interface StepResult {
 
 function apply(state: GameState, action: Action): string | null {
   if (state.phase === "gameover" || state.phase === "victory") return "런이 끝났다";
-  if (state.pending && action.type !== "choose_cards") return "선택을 먼저 마쳐야 한다";
+  if (state.pending && action.type !== "choose_cards" && action.type !== "choose_option") return "결정을 먼저 마쳐야 한다";
   switch (action.type) {
     case "play_card":
       return playCard(state, action.cardUid, action.targetUid);
@@ -31,7 +31,14 @@ function apply(state: GameState, action: Action): string | null {
       return endTurn(state);
     case "choose_cards":
       if (!state.pending) return "선택할 것이 없다";
+      if (state.pending.kind === "choose_option") return "카드가 아니라 선택지를 골라야 한다";
       return state.pending.kind === "select_cards" ? resolveCardSelection(state, action.uids) : resolveDeckSelection(state, action.uids);
+    case "choose_option":
+      return chooseOption(state, action.optionId);
+    case "commit_diagnosis":
+      return commitDiagnosis(state, action.targetUid, action.diseaseId);
+    case "return_card":
+      return returnCard(state, action.cardUid);
     case "move_map":
       return moveMap(state, action.nodeId);
     case "claim_reward":

@@ -1,4 +1,4 @@
-import { dmg, draw, iff, purge, stab, spectrum } from "../ops";
+import { choose, dmg, draw, opt, purge, spectrum, stab } from "../ops";
 import type { CardDef, EffectOp } from "../../core/types";
 
 // 원인균 순서: 폐렴알균 비정형 대장균 ESBL MSSA MRSA 복강내 C.diff 녹농균 그람음성 바이러스 지역사회
@@ -12,6 +12,52 @@ const CLR = spectrum("R W I I R I I I I I I N");
 const MTZ = spectrum("I I I I I I R W I I I N");
 
 const clearInflammation: EffectOp = { op: "remove_status", status: "inflammation", target: "target", stacks: "all" };
+const toHand = (card: string): EffectOp => ({ op: "add_card", cardId: card, count: 1, dest: "hand" });
+
+/** 수액: 속도가 곧 결정이다. 빠를수록 안정화는 크지만 체액 과다 위험 */
+function fluidChoice(bonus: number): EffectOp {
+  return choose("얼마나 빨리 줄까", [
+    opt("cautious", "신중한 투여", `안정화 ${3 + bonus}, 질병 부담 4`, [stab(3 + bonus), dmg(4)], { risk: "효과가 작다" }),
+    opt("standard", "표준 볼루스", `안정화 ${5 + bonus}, 질병 부담 7`, [stab(5 + bonus), dmg(7)]),
+    opt("aggressive", "적극적 소생", `안정화 ${10 + bonus}, 질병 부담 12`, [stab(10 + bonus), dmg(12), toHand("fluid_overload")], {
+      cost: 1,
+      risk: "오더 +1 · 손에 체액 과다 · 심부전·ARDS면 크게 악화",
+    }),
+  ]);
+}
+
+/** 인슐린: 집중 주입은 빠르지만 저혈당·저칼륨을 부른다 */
+function insulinChoice(bonus: number): EffectOp {
+  return choose("얼마나 세게 줄까", [
+    opt("standard", "표준 주입", `질병 부담 ${14 + bonus}, 고칼륨혈증 정리`, [dmg(14 + bonus), purge(["hyperkalemia"])]),
+    opt("intensive", "집중 주입", `질병 부담 ${22 + bonus}, 고칼륨혈증 정리`, [dmg(22 + bonus), purge(["hyperkalemia"]), toHand("hypoglycemia")], {
+      cost: 1,
+      risk: "오더 +1 · 손에 저혈당",
+    }),
+  ]);
+}
+
+/** 에피네프린: 근육주사가 1차, 정맥 지속은 강하지만 부정맥 */
+function epiChoice(bonus: number): EffectOp {
+  return choose("어떤 경로로 줄까", [
+    opt("im", "근육주사", `질병 부담 ${14 + bonus}, 안정화 4`, [dmg(14 + bonus), stab(4)]),
+    opt("iv", "정맥 지속 주입", `질병 부담 ${20 + bonus}, 안정화 8`, [dmg(20 + bonus), stab(8), toHand("arrhythmia")], {
+      cost: 1,
+      risk: "오더 +1 · 손에 부정맥",
+    }),
+  ]);
+}
+
+/** 승압제: 증량하면 혈압은 오르지만 부정맥 위험 */
+function pressorChoice(bonus: number): EffectOp {
+  return choose("얼마나 올릴까", [
+    opt("low", "저용량 시작", `안정화 ${6 + bonus}, 질병 부담 8`, [stab(6 + bonus), dmg(8)]),
+    opt("titrate", "빠르게 증량", `안정화 ${12 + bonus}, 질병 부담 12`, [stab(12 + bonus), dmg(12), { op: "add_card", cardId: "arrhythmia", count: 1, dest: "draw_random" }], {
+      cost: 1,
+      risk: "오더 +1 · 대기 처방에 부정맥",
+    }),
+  ]);
+}
 
 export const DRUG_CARDS = [
   // ── 항생제 ──
@@ -20,11 +66,11 @@ export const DRUG_CARDS = [
     nameKo: "세프트리악손",
     nameEn: "ceftriaxone",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 1,
     target: "enemy",
     tags: ["abx", "beta_lactam", "cdi_risk"],
-    keywords: ["targeted"],
     effects: [dmg(11)],
     drug: { halfLife: 2, sideEffects: [{ card: "rash", count: 1, dest: "discard" }], spectrum: CRO },
     upgrade: { effects: [dmg(15)] },
@@ -35,6 +81,7 @@ export const DRUG_CARDS = [
     nameKo: "피페라실린-타조박탐",
     nameEn: "piperacillin-tazobactam",
     kind: "drug",
+    zone: "formulary",
     rarity: "uncommon",
     cost: 1,
     target: "enemy",
@@ -49,6 +96,7 @@ export const DRUG_CARDS = [
     nameKo: "메로페넴",
     nameEn: "meropenem",
     kind: "drug",
+    zone: "formulary",
     rarity: "rare",
     cost: 1,
     target: "enemy",
@@ -63,11 +111,11 @@ export const DRUG_CARDS = [
     nameKo: "반코마이신",
     nameEn: "vancomycin",
     kind: "drug",
+    zone: "formulary",
     rarity: "uncommon",
     cost: 1,
     target: "enemy",
     tags: ["abx", "glycopeptide", "nephrotoxic"],
-    keywords: ["targeted"],
     effects: [dmg(16)],
     drug: { halfLife: 3, sideEffects: [{ card: "nephrotoxicity", count: 1, dest: "draw_random" }], spectrum: VAN },
     upgrade: { effects: [dmg(21)] },
@@ -78,6 +126,7 @@ export const DRUG_CARDS = [
     nameKo: "겐타마이신",
     nameEn: "gentamicin",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 1,
     target: "enemy",
@@ -92,6 +141,7 @@ export const DRUG_CARDS = [
     nameKo: "레보플록사신",
     nameEn: "levofloxacin",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 1,
     target: "enemy",
@@ -106,6 +156,7 @@ export const DRUG_CARDS = [
     nameKo: "클래리스로마이신",
     nameEn: "clarithromycin",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 1,
     target: "enemy",
@@ -120,11 +171,11 @@ export const DRUG_CARDS = [
     nameKo: "메트로니다졸",
     nameEn: "metronidazole",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 1,
     target: "enemy",
     tags: ["abx", "nitroimidazole"],
-    keywords: ["targeted"],
     effects: [dmg(12)],
     drug: { halfLife: 2, sideEffects: [{ card: "nausea", count: 1, dest: "discard" }], spectrum: MTZ },
     upgrade: { effects: [dmg(16)] },
@@ -136,6 +187,7 @@ export const DRUG_CARDS = [
     nameKo: "헤파린",
     nameEn: "heparin",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 1,
     target: "enemy",
@@ -150,6 +202,7 @@ export const DRUG_CARDS = [
     nameKo: "아스피린",
     nameEn: "aspirin",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 0,
     target: "enemy",
@@ -164,6 +217,7 @@ export const DRUG_CARDS = [
     nameKo: "알테플라제",
     nameEn: "alteplase (tPA)",
     kind: "drug",
+    zone: "formulary",
     rarity: "rare",
     cost: 2,
     target: "enemy",
@@ -178,6 +232,7 @@ export const DRUG_CARDS = [
     nameKo: "메토프롤롤",
     nameEn: "metoprolol",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 1,
     target: "enemy",
@@ -192,6 +247,7 @@ export const DRUG_CARDS = [
     nameKo: "아미오다론",
     nameEn: "amiodarone",
     kind: "drug",
+    zone: "formulary",
     rarity: "rare",
     cost: 1,
     target: "enemy",
@@ -206,17 +262,19 @@ export const DRUG_CARDS = [
     nameKo: "노르에피네프린",
     nameEn: "norepinephrine",
     kind: "drug",
+    zone: "formulary",
     rarity: "uncommon",
     cost: 1,
     target: "enemy",
     tags: ["vasopressor"],
-    effects: [stab(6), dmg(8)],
+    effects: [pressorChoice(0)],
     drug: {
       halfLife: 2,
       sideEffects: [{ card: "arrhythmia", count: 1, dest: "draw_random" }],
       whileActive: [{ on: "turn_start", effects: [stab(3)] }],
     },
-    upgrade: { effects: [stab(9), dmg(10)] },
+    upgrade: { effects: [pressorChoice(3)] },
+    upgradeText: "모든 용량에서 안정화 +3",
     medical: { fidelity: "accurate", note: "패혈성 쇼크의 1차 승압제. 빈맥성 부정맥" },
   },
   {
@@ -224,13 +282,15 @@ export const DRUG_CARDS = [
     nameKo: "에피네프린",
     nameEn: "epinephrine",
     kind: "drug",
+    zone: "formulary",
     rarity: "uncommon",
     cost: 1,
     target: "enemy",
     tags: ["vasopressor", "anaphylaxis_tx"],
-    effects: [dmg(14), stab(4)],
+    effects: [epiChoice(0)],
     drug: { halfLife: 1, sideEffects: [{ card: "arrhythmia", count: 1, dest: "draw_random" }] },
-    upgrade: { effects: [dmg(18), stab(6)] },
+    upgrade: { effects: [epiChoice(4)] },
+    upgradeText: "모든 경로에서 질병 부담 감소 +4",
     medical: { fidelity: "accurate", note: "아나필락시스 1차(근육주사), 심정지 소생. β차단제 복용자는 반응이 약하다" },
   },
   // ── 대사·신장 ──
@@ -239,13 +299,14 @@ export const DRUG_CARDS = [
     nameKo: "푸로세미드",
     nameEn: "furosemide",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 1,
     target: "enemy",
     tags: ["loop_diuretic", "k_lowering"],
-    effects: [dmg(12), purge(["hyperkalemia"], 1)],
+    effects: [dmg(12), purge(["hyperkalemia"], 1), purge(["fluid_overload"])],
     drug: { halfLife: 2, sideEffects: [{ card: "hypokalemia", count: 1, dest: "discard" }] },
-    upgrade: { effects: [dmg(16), purge(["hyperkalemia"], 1)] },
+    upgrade: { effects: [dmg(16), purge(["hyperkalemia"], 1), purge(["fluid_overload"])] },
     medical: { fidelity: "accurate", note: "체액 과다(심부전, ARDS의 보수적 수액 전략). 칼륨을 낮춘다. 급성 신손상의 회복을 돕지 않는다" },
   },
   {
@@ -253,13 +314,15 @@ export const DRUG_CARDS = [
     nameKo: "인슐린",
     nameEn: "insulin (regular)",
     kind: "drug",
+    zone: "formulary",
     rarity: "uncommon",
     cost: 1,
     target: "enemy",
     tags: ["insulin", "k_lowering"],
-    effects: [dmg(16), purge(["hyperkalemia"])],
+    effects: [insulinChoice(0)],
     drug: { halfLife: 2, sideEffects: [{ card: "hypoglycemia", count: 1, dest: "draw_random" }] },
-    upgrade: { effects: [dmg(21), purge(["hyperkalemia"])] },
+    upgrade: { effects: [insulinChoice(5)] },
+    upgradeText: "모든 속도에서 질병 부담 감소 +5",
     medical: { fidelity: "accurate", note: "DKA의 핵심 치료. 칼륨을 세포 안으로 옮겨 혈청 칼륨을 낮춘다(고칼륨혈증 치료에도 쓴다)" },
   },
   {
@@ -267,6 +330,7 @@ export const DRUG_CARDS = [
     nameKo: "염화칼륨",
     nameEn: "potassium chloride",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 0,
     target: "none",
@@ -281,13 +345,15 @@ export const DRUG_CARDS = [
     nameKo: "생리식염수",
     nameEn: "normal saline",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 1,
     target: "enemy",
     tags: ["fluid"],
-    effects: [stab(2), dmg(5)],
+    effects: [fluidChoice(0)],
     drug: { halfLife: 2, sideEffects: [], whileActive: [{ on: "turn_start", effects: [stab(2)] }] },
-    upgrade: { effects: [stab(4), dmg(8)] },
+    upgrade: { effects: [fluidChoice(3)] },
+    upgradeText: "모든 속도에서 안정화 +3",
     medical: { fidelity: "simplified", note: "순환 혈액량 부족에 쓴다. 심부전·ARDS에는 체액 과다를 악화시킨다" },
   },
   {
@@ -295,6 +361,7 @@ export const DRUG_CARDS = [
     nameKo: "포도당",
     nameEn: "dextrose",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 0,
     target: "none",
@@ -309,6 +376,7 @@ export const DRUG_CARDS = [
     nameKo: "락툴로오스",
     nameEn: "lactulose",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 1,
     target: "enemy",
@@ -324,6 +392,7 @@ export const DRUG_CARDS = [
     nameKo: "모르핀",
     nameEn: "morphine",
     kind: "drug",
+    zone: "formulary",
     rarity: "uncommon",
     cost: 1,
     target: "none",
@@ -339,6 +408,7 @@ export const DRUG_CARDS = [
     nameKo: "미다졸람",
     nameEn: "midazolam",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 0,
     target: "none",
@@ -353,6 +423,7 @@ export const DRUG_CARDS = [
     nameKo: "할로페리돌",
     nameEn: "haloperidol",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 1,
     target: "enemy",
@@ -367,6 +438,7 @@ export const DRUG_CARDS = [
     nameKo: "날록손",
     nameEn: "naloxone",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 0,
     target: "none",
@@ -381,6 +453,7 @@ export const DRUG_CARDS = [
     nameKo: "온단세트론",
     nameEn: "ondansetron",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 0,
     target: "none",
@@ -396,6 +469,7 @@ export const DRUG_CARDS = [
     nameKo: "메틸프레드니솔론",
     nameEn: "methylprednisolone",
     kind: "drug",
+    zone: "formulary",
     rarity: "uncommon",
     cost: 1,
     target: "enemy",
@@ -410,6 +484,7 @@ export const DRUG_CARDS = [
     nameKo: "살부타몰",
     nameEn: "salbutamol",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 0,
     target: "enemy",
@@ -424,6 +499,7 @@ export const DRUG_CARDS = [
     nameKo: "판토프라졸",
     nameEn: "pantoprazole",
     kind: "drug",
+    zone: "formulary",
     rarity: "common",
     cost: 1,
     target: "enemy",
@@ -433,10 +509,24 @@ export const DRUG_CARDS = [
     upgrade: { effects: [dmg(13), stab(5)] },
     medical: { fidelity: "accurate", note: "소화성 궤양 출혈의 내시경 전후 치료. 장기 사용은 C. diff 위험을 높인다" },
   },
+  {
+    id: "acetaminophen",
+    nameKo: "아세트아미노펜",
+    nameEn: "acetaminophen",
+    kind: "drug",
+    zone: "formulary",
+    rarity: "common",
+    cost: 1,
+    target: "enemy",
+    tags: ["analgesic"],
+    effects: [stab(5), { op: "apply_status", status: "weak", stacks: 1, target: "target" }],
+    drug: { halfLife: 2, sideEffects: [] },
+    upgrade: { effects: [stab(7), { op: "apply_status", status: "weak", stacks: 2, target: "target" }] },
+    medical: { fidelity: "simplified", note: "해열진통제는 증상을 누그러뜨릴 뿐 원인을 치료하지 않는다. 위축은 발열·통증 부담의 감소를 뜻한다" },
+  },
 ] satisfies CardDef[];
 
 function purgeHandConfusion(): EffectOp {
   return { op: "exhaust_cards", from: ["hand", "draw", "discard"], filter: { ids: ["confusion"] }, amount: 1 };
 }
 
-void iff;

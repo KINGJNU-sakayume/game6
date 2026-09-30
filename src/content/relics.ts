@@ -1,5 +1,5 @@
 // 유물(가이드라인) 17개. design.md §5.8
-import { addCard, diag, draw, orders, stab } from "./ops";
+import { addCard, draw, orders, stab } from "./ops";
 import type { RelicDef } from "../core/types";
 
 export const RELICS = [
@@ -9,8 +9,8 @@ export const RELICS = [
     nameEn: "Intern's notebook",
     badge: "수첩",
     tier: "starter",
-    triggers: [{ on: "combat_start", effects: [diag(1, "target")] }],
-    description: "전투가 시작될 때 첫 번째 질병 진단 +1.",
+    triggers: [{ on: "combat_start", effects: [{ op: "investigate_best", groups: ["history"], count: 1, target: "target" }] }],
+    description: "전투가 시작될 때 첫 번째 문제에서 가장 감별력 있는 병력 1개를 얻는다.",
     flavor: "모서리가 닳은 포켓 수첩. 선배가 적어 준 감별 목록이 있다.",
   },
   {
@@ -61,8 +61,8 @@ export const RELICS = [
     nameEn: "Guideline pocket card",
     badge: "GL",
     tier: "common",
-    triggers: [{ on: "knowledge_up", effects: [draw(1)] }],
-    description: "질병을 확진하면 카드 1장 뽑기.",
+    triggers: [{ on: "knowledge_up", effects: [draw(1)] }, { on: "diagnosis_committed", oncePerCombat: true, effects: [draw(1)] }],
+    description: "전투에서 처음 작업 진단을 정할 때와 확진할 때 카드 1장 뽑기.",
     flavor: "코팅된 카드 한 장에 알고리즘이 빼곡하다.",
   },
   {
@@ -93,8 +93,8 @@ export const RELICS = [
     badge: "ASP",
     tier: "uncommon",
     triggers: [],
-    modifiers: [{ kind: "resistanceHalf" }, { kind: "abxBonusConfirmed", value: 2 }],
-    description: "획득 내성이 절반만 쌓인다. 확진된 질병에게 항생제 피해 +2.",
+    modifiers: [{ kind: "resistanceHalf" }, { kind: "abxBonusOrganism", value: 3 }],
+    description: "획득 내성이 절반만 쌓인다. 원인균을 확인한 문제에 항생제 효과 +3.",
     flavor: "감염내과에서 전화가 왔다. \"배양 결과 보셨어요?\"",
   },
   {
@@ -103,8 +103,8 @@ export const RELICS = [
     nameEn: "Hour-1 sepsis bundle",
     badge: "SEP-1",
     tier: "uncommon",
-    triggers: [{ on: "combat_start", effects: [{ op: "cost_modifier", filter: { tags: ["abx"] }, delta: -9, uses: 1, scope: "turn" }] }],
-    description: "전투 첫 턴에 처음 쓰는 항생제의 비용이 0.",
+    triggers: [{ on: "combat_start", effects: [{ op: "cost_modifier", filter: { tags: ["abx"] }, delta: -9, uses: 1, scope: "turn" }, { op: "cost_modifier", filter: { ids: ["culture"] }, delta: -9, uses: 1, scope: "turn" }] }],
+    description: "전투 첫 턴에 처음 쓰는 배양 검사와 항생제의 비용이 0.",
     flavor: "젖산, 혈액배양, 광범위 항생제, 수액, 승압제.",
   },
   {
@@ -124,8 +124,8 @@ export const RELICS = [
     badge: "DDx",
     tier: "uncommon",
     triggers: [],
-    modifiers: [{ kind: "diagnoseBonus", value: 1 }],
-    description: "진단 포인트를 얻을 때마다 1 더 얻는다.",
+    modifiers: [{ kind: "extraDiagnosticPick" }],
+    description: "매 턴 처음 여는 진단 카드 선택지를 하나 더 고른다.",
     flavor: "흔한 것부터, 위험한 것은 꼭.",
   },
   {

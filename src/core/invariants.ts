@@ -12,7 +12,7 @@ export function checkInvariants(state: GameState): string[] {
   if (!isInt(run.vitality) || run.vitality < 0 || run.vitality > run.maxVitality) errs.push(`활력 범위 위반: ${run.vitality}/${run.maxVitality}`);
   if (!isInt(run.gold) || run.gold < 0) errs.push(`예산 위반: ${run.gold}`);
   const deckUids = new Set<string>();
-  for (const ci of run.deck) {
+  for (const ci of [...run.deck, ...run.formulary]) {
     if (deckUids.has(ci.uid)) errs.push(`덱 UID 중복: ${ci.uid}`);
     deckUids.add(ci.uid);
   }
@@ -35,6 +35,12 @@ export function checkInvariants(state: GameState): string[] {
     if (!c.over && c.enemies.every((e) => e.cured)) errs.push("모든 적이 치료되었는데 전투가 끝나지 않았다");
     if (!state.pending && c.queue.length > 0) errs.push(`대기 선택 없이 큐가 남았다: ${c.queue.length}`);
     if (!state.pending && c.limbo.length > 0) errs.push(`처리 중 카드가 남았다: ${c.limbo.length}`);
+    for (const e of c.enemies) {
+      if (!e.hypotheses.includes(e.diseaseId)) errs.push(`실제 질병이 감별 목록에 없다: ${e.uid}`);
+      if (e.workingDx && !e.hypotheses.includes(e.workingDx)) errs.push(`작업 진단이 감별 목록 밖: ${e.uid}`);
+    }
+    if (state.pending?.kind === "choose_option" && !state.pending.options.some((o) => o.available) && !state.pending.canSkip)
+      errs.push("고를 수 있는 선택지가 없는 결정이 열려 있다");
   }
   return errs;
 }

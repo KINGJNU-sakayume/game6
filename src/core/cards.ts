@@ -78,10 +78,10 @@ export function addCardTo(state: GameState, ci: CardInstance, dest: "hand" | "di
 }
 
 /** 부작용·질병 카드 추가. 지속 부작용이면 런 덱에도 1장 넣는다. */
-export function addGeneratedCard(state: GameState, cardId: string, dest: "hand" | "discard" | "draw_random", costZero = false): void {
+export function addGeneratedCard(state: GameState, cardId: string, dest: "hand" | "discard" | "draw_random", costZero = false, upgraded = false): void {
   const c = state.combat!;
   const def = cardDef(cardId);
-  const ci = createInstance(state, cardId, true);
+  const ci = createInstance(state, cardId, true, upgraded);
   if (costZero) ci.costZeroThisTurn = true;
   addCardTo(state, ci, dest);
   if (def.kind === "side_effect") {
@@ -93,6 +93,8 @@ export function addGeneratedCard(state: GameState, cardId: string, dest: "hand" 
       state.run.deck.push({ uid: newUid(state), cardId, upgraded: false });
       log(c, "warn", `${def.nameKo}은(는) 지속 부작용이다. 처방 목록에 남는다`);
     }
+  } else if (dest === "hand") {
+    log(c, "info", `${def.nameKo}${upgraded ? "+" : ""} 카드를 손에 넣었다`);
   }
 }
 

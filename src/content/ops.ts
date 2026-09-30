@@ -1,10 +1,24 @@
 // 콘텐츠 작성용 명령 생성 도우미. 데이터만 만든다.
-import type { Condition, EffectOp, Grade, OrganismId, StatusId, TargetSel } from "../core/types";
+import type { ChannelId, Condition, EffectOp, Grade, OptionDef, OrganismId, StatusId, TargetSel } from "../core/types";
 
 export const dmg = (amount: number, extra: { hits?: number; target?: TargetSel } = {}): EffectOp => ({ op: "damage", amount, target: extra.target ?? "target", ...(extra.hits ? { hits: extra.hits } : {}) });
 export const stab = (amount: number): EffectOp => ({ op: "gain_stability", amount, target: "patient" });
 export const draw = (amount: number): EffectOp => ({ op: "draw", amount });
-export const diag = (points: number, target: TargetSel = "target"): EffectOp => ({ op: "diagnose", points, target });
+/** 검사: 대상 문제의 한 경로 소견을 얻는다 */
+export const look = (channel: ChannelId): EffectOp => ({ op: "investigate", channel });
+/** 선택지 하나 */
+export const opt = (id: string, label: string, detail: string, effects: EffectOp[], extra: Partial<OptionDef> = {}): OptionDef => ({ id, label, detail, effects, ...extra });
+/** 검사 선택지: 경로를 붙여 두면 이미 본 소견은 고를 수 없고 관련 가설 힌트가 붙는다 */
+export const lookOpt = (channel: ChannelId, label: string, detail: string, extra: EffectOp[] = [], more: Partial<OptionDef> = {}): OptionDef => ({
+  id: channel,
+  label,
+  detail,
+  channel,
+  effects: [look(channel), ...extra],
+  ...more,
+});
+/** 임상 결정: 2–4개 중 picks개 */
+export const choose = (prompt: string, options: OptionDef[], picks = 1, title?: string): EffectOp => ({ op: "choose_option", prompt, options, ...(picks > 1 ? { picks } : {}), ...(title ? { title } : {}) });
 export const heal = (amount: number): EffectOp => ({ op: "heal", amount, target: "patient" });
 export const orders = (amount: number): EffectOp => ({ op: "gain_orders", amount });
 export const status = (id: StatusId, stacks: number, target: TargetSel = "target"): EffectOp => ({ op: "apply_status", status: id, stacks, target });

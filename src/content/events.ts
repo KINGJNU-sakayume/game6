@@ -7,8 +7,8 @@ export const EVENTS = [
     title: "제약회사 샘플",
     body: "간호사실 앞에서 영업사원이 서류 가방을 연다. \"신약 샘플이에요. 선생님 환자분께 딱일 것 같아서요.\"",
     options: [
-      { id: "a", label: "샘플을 받는다", detail: "무작위 고급 약물 카드 1장을 얻는다.", ops: [{ op: "gain_random_card", rarity: "uncommon", kind: "drug" }], result: "샘플 상자를 가운 주머니에 넣었다." },
-      { id: "b", label: "최신 문헌만 받는다", detail: "처방 목록의 무작위 약물 1장을 최적화한다.", ops: [{ op: "upgrade_random", count: 1, kind: "drug" }], result: "리뷰 논문 한 편을 받아 읽었다. 처방이 조금 더 정확해졌다." },
+      { id: "a", label: "샘플을 받는다", detail: "아직 처방집에 없는 고급 약물 1개를 처방집에 추가한다.", ops: [{ op: "gain_random_card", rarity: "uncommon", kind: "drug", zone: "formulary" }], result: "샘플 상자를 가운 주머니에 넣었다." },
+      { id: "b", label: "최신 문헌만 받는다", detail: "처방집의 무작위 약물 1개를 최적화한다.", ops: [{ op: "upgrade_random", count: 1, kind: "drug" }], result: "리뷰 논문 한 편을 받아 읽었다. 처방이 조금 더 정확해졌다." },
     ],
   },
   {

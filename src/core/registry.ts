@@ -2,14 +2,18 @@
 import type {
   CardDef,
   CardId,
+  ChannelDef,
+  ConsultDef,
   ContentDB,
   DiseaseDef,
   DiseaseId,
   EncounterDef,
   EventDef,
+  FindingDef,
   InteractionRule,
   KeywordDef,
   OrganismDef,
+  PresentationDef,
   QuizQuestion,
   RelicDef,
   RelicId,
@@ -34,6 +38,10 @@ interface Indexed {
   events: Map<string, EventDef>;
   keywords: Map<string, KeywordDef>;
   quiz: Map<string, QuizQuestion>;
+  channels: Map<string, ChannelDef>;
+  findings: Map<string, FindingDef>;
+  presentations: Map<string, PresentationDef>;
+  consults: Map<string, ConsultDef>;
 }
 
 let current: Indexed | null = null;
@@ -56,6 +64,10 @@ export function installContent(db: ContentDB): void {
     events: new Map(db.events.map((e) => [e.id, e] as const)),
     keywords: new Map(db.keywords.map((k) => [k.id, k] as const)),
     quiz: new Map(db.quiz.map((q) => [q.id, q] as const)),
+    channels: new Map(db.channels.map((c) => [c.id, c] as const)),
+    findings: new Map(db.findings.map((f) => [f.id, f] as const)),
+    presentations: new Map(db.presentations.map((p) => [p.id, p] as const)),
+    consults: new Map(db.consults.map((c) => [c.id, c] as const)),
   };
 }
 
@@ -159,6 +171,42 @@ export function quizDef(id: string): QuizQuestion {
 
 export function interactionRules(): InteractionRule[] {
   return idx().db.interactions;
+}
+
+export function channelDef(id: string): ChannelDef {
+  const def = idx().channels.get(id);
+  if (!def) throw new Error(`unknown channel ${id}`);
+  return def;
+}
+
+export function hasChannel(id: string): boolean {
+  return idx().channels.has(id);
+}
+
+export function findingDef(id: string): FindingDef {
+  const def = idx().findings.get(id);
+  if (!def) throw new Error(`unknown finding ${id}`);
+  return def;
+}
+
+export function hasFinding(id: string): boolean {
+  return idx().findings.has(id);
+}
+
+export function presentationDef(id: string): PresentationDef {
+  const def = idx().presentations.get(id);
+  if (!def) throw new Error(`unknown presentation ${id}`);
+  return def;
+}
+
+export function consultDef(id: string): ConsultDef {
+  const def = idx().consults.get(id);
+  if (!def) throw new Error(`unknown consult ${id}`);
+  return def;
+}
+
+export function hasDisease(id: string): boolean {
+  return idx().diseases.has(id);
 }
 
 export function categoryName(id: string): string {

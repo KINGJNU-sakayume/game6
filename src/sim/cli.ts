@@ -2,7 +2,7 @@
 import { CONTENT } from "../content";
 import { cardDef, db, diseaseDef, installContent, newRun, step } from "../core";
 import { startCombat } from "../core/combat";
-import { GreedyBot } from "./bots/greedy";
+import { ClinicianBot } from "./bots/clinician";
 import { RandomBot } from "./bots/random";
 import { DECKS } from "./decks";
 import type { GameState } from "../core";
@@ -19,7 +19,7 @@ const botName = arg("bot", "greedy");
 const cap = Number(arg("cap", "300"));
 
 function makeBot(seed: string) {
-  return botName === "random" ? new RandomBot(seed) : new GreedyBot(seed, cap);
+  return botName === "random" ? new RandomBot(seed) : new ClinicianBot(seed, cap);
 }
 
 function mean(xs: number[]) {
