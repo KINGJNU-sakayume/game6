@@ -165,6 +165,10 @@ async function main() {
       await page.locator(".reward-row", { hasText: "처방 추가" }).first().click().catch(() => undefined);
       await shoot(page, "08-card-pick");
     }
+    if (k === "pending") {
+      await page.locator(".ov-sheet .grid-cell .card[role=button]").first().click().catch(() => undefined);
+      await shoot(page, "14b-pending-picked");
+    }
     if (k === "map") {
       await page.locator(".emr-actions button").first().click().catch(() => undefined);
       await shoot(page, "02b-deck");
