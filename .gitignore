@@ -1,0 +1,8 @@
+node_modules
+dist
+dist-artifact
+coverage
+*.log
+.DS_Store
+shots/
+sim/reports/

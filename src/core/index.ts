@@ -1,0 +1,20 @@
+// core 공개 API. ui와 sim은 이 파일만 import한다. design.md §3.3
+export { installContent, contentInstalled, cardDef, diseaseDef, relicDef, statusDef, tagDef, traitDef, organismDef, eventDef, quizDef, keywordDef, encounterDef, db, categoryName, hasRelicDef, hasCard } from "./registry";
+export { validateContent, cardBudget, indicatedDiseaseCount } from "./validate";
+export type { ValidationResult } from "./validate";
+export { newRun, availableNodes, START_VITALITY, START_GOLD } from "./run";
+export type { RunOptions } from "./run";
+export { step } from "./step";
+export type { StepResult } from "./step";
+export { legalActions } from "./legal";
+export { previewInteractions } from "./drugs";
+export { visibleEnemyInfo, previewDamage, cardCost, isPlayable, patientStatusViews, gradeLabel } from "./view";
+export type { EnemyView, IntentView, TableRow, AbxCell } from "./view";
+export { describeCard } from "./describe";
+export type { CardText } from "./describe";
+export { stateHash, canonicalStringify } from "./hash";
+export { checkInvariants } from "./invariants";
+export { canPlay } from "./combat";
+export { actFloors, treasureFloor, MAP_WIDTH, reachableFromStart } from "./map";
+export { resistancePct, GRADE_PCT } from "./damage";
+export * from "./types";
