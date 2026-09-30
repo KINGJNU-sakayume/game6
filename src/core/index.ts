@@ -18,3 +18,4 @@ export { canPlay } from "./combat";
 export { actFloors, treasureFloor, MAP_WIDTH, reachableFromStart } from "./map";
 export { resistancePct, GRADE_PCT } from "./damage";
 export * from "./types";
+export { cyrb128 } from "./rng";

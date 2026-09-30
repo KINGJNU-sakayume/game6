@@ -1,0 +1,296 @@
+// 상태 보관, dispatch, 저장, 연출 큐. design.md §3.8–3.9
+import { CONTENT } from "../content";
+import { cardDef, hasCard, hasRelicDef, installContent, newRun, stateHash, step } from "../core";
+import type { Action, GameEvent, GameState } from "../core";
+
+installContent(CONTENT);
+
+const SAVE_KEY = "orderset.save";
+const SETTINGS_KEY = "orderset.settings";
+
+export type AnimSpeed = "normal" | "fast" | "off";
+export interface Settings {
+  anim: AnimSpeed;
+}
+
+export interface Fx {
+  id: number;
+  kind: "float" | "toast" | "flash" | "stamp" | "turn" | "shake" | "relic";
+  target?: string; // "patient" | enemy uid | relic id
+  text?: string;
+  tone?: string;
+  at: number; // 시작 시각(ms, performance.now 기준)
+  dur: number;
+}
+
+export interface Snapshot {
+  state: GameState | null;
+  version: number;
+  fx: Fx[];
+  settings: Settings;
+  lastError?: string;
+}
+
+interface SaveFile {
+  schemaVersion: number;
+  state: GameState;
+  actionLog: Action[];
+}
+
+function safeGet(key: string): string | null {
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function safeSet(key: string, value: string): void {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    /* 저장소를 쓸 수 없어도 게임은 계속된다 */
+  }
+}
+function safeRemove(key: string): void {
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    /* noop */
+  }
+}
+
+/** 없는 카드·유물 ID를 대체한다 (design §3.9) */
+function migrate(state: GameState): { state: GameState; warnings: string[] } {
+  const warnings: string[] = [];
+  for (const c of state.run.deck) {
+    if (!hasCard(c.cardId)) {
+      warnings.push(`카드 ${c.cardId}`);
+      c.cardId = "obsolete_card";
+    }
+  }
+  for (const r of state.run.relics) {
+    if (!hasRelicDef(r.id)) {
+      warnings.push(`유물 ${r.id}`);
+      r.id = "obsolete_relic";
+    }
+  }
+  return { state, warnings };
+}
+
+class Controller {
+  private listeners = new Set<() => void>();
+  private snap: Snapshot;
+  private log: Action[] = [];
+  private fxId = 1;
+
+  constructor() {
+    let settings: Settings = { anim: "normal" };
+    const raw = safeGet(SETTINGS_KEY);
+    if (raw) {
+      try {
+        settings = { ...settings, ...(JSON.parse(raw) as Partial<Settings>) };
+      } catch {
+        /* 무시 */
+      }
+    }
+    this.snap = { state: null, version: 0, fx: [], settings };
+  }
+
+  subscribe = (fn: () => void): (() => void) => {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  };
+
+  getSnapshot = (): Snapshot => this.snap;
+
+  private emit(patch: Partial<Snapshot>): void {
+    this.snap = { ...this.snap, ...patch, version: this.snap.version + 1 };
+    for (const l of this.listeners) l();
+  }
+
+  hasSave(): boolean {
+    const raw = safeGet(SAVE_KEY);
+    if (!raw) return false;
+    try {
+      const f = JSON.parse(raw) as SaveFile;
+      return f.schemaVersion === 2 && f.state.phase !== "gameover" && f.state.phase !== "victory";
+    } catch {
+      return false;
+    }
+  }
+
+  savedSummary(): string | null {
+    const raw = safeGet(SAVE_KEY);
+    if (!raw) return null;
+    try {
+      const f = JSON.parse(raw) as SaveFile;
+      const r = f.state.run;
+      return `${r.patient.surname}○○ · ${r.act}막 ${r.floor}층 · 활력 ${r.vitality}/${r.maxVitality}`;
+    } catch {
+      return null;
+    }
+  }
+
+  newGame(seed: string): void {
+    const state = newRun(seed);
+    this.log = [];
+    this.persist(state);
+    this.emit({ state, fx: [], lastError: undefined });
+  }
+
+  loadSave(): boolean {
+    const raw = safeGet(SAVE_KEY);
+    if (!raw) return false;
+    try {
+      const f = JSON.parse(raw) as SaveFile;
+      if (f.schemaVersion !== 2) return false;
+      const { state, warnings } = migrate(f.state);
+      this.log = f.actionLog ?? [];
+      this.emit({ state, fx: [], lastError: warnings.length ? `저장 파일의 일부 항목이 사라져 대체했다: ${warnings.join(", ")}` : undefined });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  restore(data: { state?: GameState; log?: Action[] }): boolean {
+    if (!data.state) return false;
+    this.log = data.log ?? [];
+    this.emit({ state: data.state, fx: [] });
+    return true;
+  }
+
+  hotData(): { state: GameState | null; log: Action[] } {
+    return { state: this.snap.state, log: this.log };
+  }
+
+  toTitle(): void {
+    this.emit({ state: null, fx: [] });
+  }
+
+  abandon(): void {
+    safeRemove(SAVE_KEY);
+    this.log = [];
+    this.emit({ state: null, fx: [] });
+  }
+
+  setSettings(s: Partial<Settings>): void {
+    const settings = { ...this.snap.settings, ...s };
+    safeSet(SETTINGS_KEY, JSON.stringify(settings));
+    this.emit({ settings });
+  }
+
+  exportRun(): string {
+    const s = this.snap.state;
+    return JSON.stringify({ seed: s?.seed, actionLog: this.log, finalHash: s ? stateHash(s) : null });
+  }
+
+  private persist(state: GameState): void {
+    const file: SaveFile = { schemaVersion: 2, state, actionLog: this.log };
+    safeSet(SAVE_KEY, JSON.stringify(file));
+  }
+
+  dispatch = (action: Action): boolean => {
+    const s = this.snap.state;
+    if (!s) return false;
+    const r = step(s, action);
+    if (r.events[0]?.type === "action_rejected") {
+      this.emit({ lastError: r.events[0].reason });
+      return false;
+    }
+    this.log.push(action);
+    this.persist(r.state);
+    const fx = this.makeFx(r.events, s, r.state);
+    const now = performance.now();
+    const keep = this.snap.fx.filter((f) => f.at + f.dur > now);
+    this.emit({ state: r.state, fx: [...keep, ...fx], lastError: undefined });
+    return true;
+  };
+
+  clearError(): void {
+    if (this.snap.lastError) this.emit({ lastError: undefined });
+  }
+
+  /** 이벤트 → 연출. 적 턴의 연출은 차례로 늦춰 재생한다. */
+  private makeFx(events: GameEvent[], before: GameState, after: GameState): Fx[] {
+    const speed = this.snap.settings.anim;
+    if (speed === "off") return [];
+    const k = speed === "fast" ? 0.5 : 1;
+    const out: Fx[] = [];
+    let t = performance.now();
+    let enemyPhase = false;
+    const push = (f: Omit<Fx, "id" | "at">, delay = 0) => {
+      out.push({ ...f, dur: f.dur * k, id: this.fxId++, at: t + delay * k });
+    };
+    for (const ev of events) {
+      switch (ev.type) {
+        case "enemy_move":
+          enemyPhase = true;
+          t += 420 * k;
+          push({ kind: "shake", target: ev.target, dur: 360 });
+          break;
+        case "damage":
+          if (ev.target === "patient") {
+            if (ev.amount - ev.absorbed > 0) push({ kind: "flash", target: "patient", dur: 380 });
+            push({ kind: "float", target: "patient", text: ev.amount - ev.absorbed > 0 ? `−${ev.amount - ev.absorbed}` : "막음", tone: ev.amount - ev.absorbed > 0 ? "hurt" : "block", dur: 1100 });
+          } else {
+            const tone = ev.grade === "key" ? "key" : ev.grade === "weak" ? "weak" : ev.grade === "resistant" ? "resistant" : "normal";
+            push({ kind: "float", target: ev.target, text: ev.absorbed && ev.amount === ev.absorbed ? "막힘" : `−${ev.amount - ev.absorbed}`, tone, dur: 1100 });
+            push({ kind: "shake", target: ev.target, dur: 260 });
+          }
+          if (!enemyPhase) t += 90 * k;
+          break;
+        case "ineffective":
+          push({ kind: "float", target: ev.target, text: ev.reason === "not_indicated" ? "적응증 아님" : "무효", tone: "void", dur: 1300 });
+          break;
+        case "harmful_treatment":
+          push({ kind: "float", target: ev.target, text: `금기 +${ev.healed}`, tone: "harm", dur: 1500 });
+          push({ kind: "toast", text: "금기 약물이 질병을 악화시켰다", tone: "hazard", dur: 2400 });
+          break;
+        case "healed":
+          if (ev.target === "patient" && ev.amount > 0) push({ kind: "float", target: "patient", text: `+${ev.amount}`, tone: "heal", dur: 1100 });
+          else if (ev.target !== "patient" && ev.amount > 0) push({ kind: "float", target: ev.target, text: `+${ev.amount}`, tone: "regen", dur: 1000 });
+          break;
+        case "vitality_lost":
+          push({ kind: "flash", target: "patient", dur: 380 });
+          push({ kind: "float", target: "patient", text: `−${ev.amount}`, tone: "hurt", dur: 1100 });
+          break;
+        case "stability_gained":
+          if (ev.target === "patient" && ev.amount > 0) push({ kind: "float", target: "patient", text: `안정화 +${ev.amount}`, tone: "block", dur: 900 });
+          break;
+        case "interaction_fired":
+          push({ kind: "toast", text: `${ev.blocked ? "DUR 차단 · " : ""}${ev.ruleId} ${ev.text}`, tone: ev.blocked ? "info" : ev.kind, dur: 2600 });
+          break;
+        case "knowledge_up":
+          push({ kind: "stamp", target: ev.target, text: ev.level === 2 ? "확진" : "감별", dur: 1400 });
+          break;
+        case "phase_changed":
+          push({ kind: "toast", text: `상태 변화: ${ev.name}`, tone: "hazard", dur: 2400 });
+          break;
+        case "countdown_fired":
+          push({ kind: "shake", target: ev.target, dur: 500 });
+          break;
+        case "enemy_cured":
+          push({ kind: "stamp", target: ev.target, text: "치료", dur: 1600 });
+          break;
+        case "turn_started":
+          if (ev.turn > 1) push({ kind: "turn", text: `${ev.turn}턴`, dur: 900 }, 200);
+          enemyPhase = false;
+          break;
+        case "relic_triggered":
+          push({ kind: "relic", target: ev.relicId, dur: 900 });
+          break;
+        case "side_effect_added":
+          push({ kind: "toast", text: `부작용: ${cardDef(ev.cardId).nameKo}`, tone: "side", dur: 1800 });
+          break;
+        default:
+          break;
+      }
+    }
+    void before;
+    void after;
+    return out;
+  }
+}
+
+export const controller = new Controller();

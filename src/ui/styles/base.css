@@ -1,0 +1,259 @@
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--curtain-shade);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+#root {
+  height: 100%;
+}
+* {
+  box-sizing: border-box;
+}
+button {
+  font: inherit;
+  color: inherit;
+}
+:focus-visible {
+  outline: 2px solid var(--ballpoint);
+  outline-offset: 2px;
+}
+
+/* ── 무대 ── */
+.viewport {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  overflow: clip;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0) 18%, rgba(0, 0, 0, 0) 82%, rgba(0, 0, 0, 0.14)),
+    repeating-linear-gradient(90deg, var(--curtain-deep) 0 22px, var(--curtain) 22px 46px, var(--curtain-shade) 46px 70px, var(--curtain) 70px 96px);
+}
+.stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--stage-w);
+  height: var(--stage-h);
+  transform-origin: center center;
+  overflow: hidden;
+  overflow: clip;
+  background:
+    radial-gradient(ellipse at 50% 38%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.05) 0 1px, transparent 1px 100%) 0 0 / 48px 100%,
+    repeating-linear-gradient(90deg, #cadbd4 0 20px, #d6e5df 20px 42px, #c9dad3 42px 62px, #d4e3dd 62px 90px);
+  box-shadow: 0 0 0 1px rgba(28, 36, 51, 0.08), 0 18px 60px rgba(28, 36, 51, 0.25);
+}
+/* 커튼 레일과 고리 */
+.stage::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--banner-h);
+  height: 10px;
+  background:
+    radial-gradient(circle at 12px 5px, transparent 3px, #9fb0ab 3.5px, #9fb0ab 4.5px, transparent 5px) 0 0 / 48px 10px repeat-x,
+    linear-gradient(180deg, #b9c6c2, #a4b3ae);
+  opacity: 0.9;
+  z-index: 1;
+  pointer-events: none;
+}
+.rotate-hint {
+  display: none;
+}
+@media (orientation: portrait) and (max-width: 700px) {
+  .rotate-hint {
+    display: flex;
+    position: fixed;
+    inset: auto 16px 16px 16px;
+    padding: 10px 14px;
+    background: var(--paper);
+    border: 1px solid var(--chrome-line);
+    font-size: 13px;
+    z-index: 100;
+    gap: 8px;
+    align-items: center;
+    box-shadow: var(--shadow-paper);
+  }
+}
+
+/* ── 버튼 ── */
+.btn {
+  appearance: none;
+  border: 1px solid #8f99a4;
+  background: linear-gradient(180deg, #fbfcfd, #e3e8ec);
+  color: var(--ink);
+  padding: 6px 14px;
+  border-radius: 2px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 #fff, 0 1px 0 rgba(28, 36, 51, 0.12);
+  white-space: nowrap;
+}
+.btn:hover {
+  background: linear-gradient(180deg, #ffffff, #eaf0f4);
+  border-color: var(--titlebar);
+}
+.btn:active {
+  background: #dfe5ea;
+  box-shadow: inset 0 1px 3px rgba(28, 36, 51, 0.2);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btn-primary {
+  background: linear-gradient(180deg, #3b7288, var(--titlebar));
+  border-color: var(--titlebar-2);
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 1px 0 rgba(28, 36, 51, 0.2);
+}
+.btn-primary:hover {
+  background: linear-gradient(180deg, #437d94, #2f6376);
+  border-color: var(--titlebar-2);
+}
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--ink-soft);
+}
+.btn-ghost:hover {
+  background: rgba(28, 36, 51, 0.06);
+  border-color: transparent;
+}
+
+/* 도장 버튼 */
+.stamp-btn {
+  appearance: none;
+  cursor: pointer;
+  border: 3px solid var(--stamp);
+  color: var(--stamp);
+  background: rgba(255, 255, 255, 0.55);
+  font-family: var(--f-stamp);
+  font-size: 22px;
+  letter-spacing: 0.08em;
+  padding: 6px 18px 4px;
+  border-radius: 6px;
+  transform: rotate(-3deg);
+  box-shadow: inset 0 0 0 2px rgba(194, 58, 43, 0.25);
+  transition: transform 0.12s ease, background 0.12s ease;
+  -webkit-mask-image: radial-gradient(circle at 30% 40%, #000 60%, rgba(0, 0, 0, 0.82) 61%, #000 75%);
+  mask-image: radial-gradient(circle at 30% 40%, #000 60%, rgba(0, 0, 0, 0.82) 61%, #000 75%);
+}
+.stamp-btn:hover {
+  transform: rotate(-3deg) scale(1.04);
+  background: rgba(255, 255, 255, 0.85);
+}
+.stamp-btn:active {
+  transform: rotate(-3deg) scale(0.97);
+}
+.stamp-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  transform: rotate(-3deg);
+}
+
+/* ── 종이 서식 ── */
+.sheet {
+  background: var(--paper);
+  border: 1px solid #c9cfc8;
+  box-shadow: 0 1px 0 rgba(28, 36, 51, 0.05), 0 8px 26px rgba(28, 36, 51, 0.18);
+  position: relative;
+}
+.sheet-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--ink);
+  padding: 14px 20px 8px;
+  gap: 16px;
+}
+.form-code {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+.hand {
+  font-family: var(--f-hand);
+  color: var(--ballpoint);
+}
+.mono {
+  font-family: var(--f-mono);
+}
+.num {
+  font-family: var(--f-num);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 오버레이 ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 28, 34, 0.46);
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  animation: fade-in 0.14s ease-out;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ── 툴팁 ── */
+.tip {
+  position: absolute;
+  z-index: 90;
+  max-width: 280px;
+  background: #fffef6;
+  border: 1px solid #b8b08a;
+  box-shadow: 0 6px 18px rgba(28, 36, 51, 0.2);
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink);
+  pointer-events: none;
+}
+.tip b {
+  font-weight: 600;
+}
+.tip .tip-title {
+  font-weight: 700;
+  margin-bottom: 2px;
+  font-size: 12.5px;
+}
+.tip .tip-sub {
+  color: var(--ink-soft);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

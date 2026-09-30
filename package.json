@@ -15,7 +15,7 @@
     "content:report": "tsx src/sim/content-report.ts",
     "sim": "tsx src/sim/cli.ts",
     "replay": "tsx src/sim/replay.ts",
-    "shots": "node scripts/screenshots.mjs"
+    "shots": "tsx scripts/screenshots.ts"
   },
   "dependencies": {
     "react": "18.3.1",

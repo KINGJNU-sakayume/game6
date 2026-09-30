@@ -1,0 +1,91 @@
+/* 오더 세트 — 디자인 토큰
+   레이아웃: 1280×720 고정 무대. 병실 커튼 위에 병원 서식(종이)과 환자 모니터(검은 화면)를 얹는다.
+   한 가지 시각 세계로 고정한 디자인이라 라이트/다크 전환을 두지 않는다. */
+:root {
+  color-scheme: light;
+
+  /* 재료 */
+  --curtain: #d3e2dc;
+  --curtain-deep: #c3d5ce;
+  --curtain-shade: #b7cbc3;
+  --chrome: #e6eaee;
+  --chrome-2: #d6dce2;
+  --chrome-line: #b9c1c9;
+  --titlebar: #2c5d70;
+  --titlebar-2: #234c5c;
+  --paper: #fafbf8;
+  --paper-2: #f1f3ef;
+  --paper-line: #d9ded8;
+  --grid: #dfe8ef;
+  --canary: #f6efc8;
+  --pink-copy: #f6dfe2;
+
+  /* 잉크 */
+  --ink: #1c2433;
+  --ink-2: #3a4456;
+  --ink-soft: #5b6576;
+  --ink-faint: #8a93a1;
+  --stamp: #c23a2b;
+  --stamp-soft: rgba(194, 58, 43, 0.14);
+  --ballpoint: #2346a0;
+  --ballpoint-soft: rgba(35, 70, 160, 0.12);
+  --highlight: #f2e36b;
+  --pencil: #9aa3ad;
+
+  /* 모니터 */
+  --mon-bg: #0b100f;
+  --mon-panel: #121a18;
+  --mon-line: #22302c;
+  --hr: #45e08a;
+  --spo2: #3bc9e6;
+  --alarm: #f05d5e;
+  --resp: #f3d35b;
+  --mon-text: #c9d4d0;
+  --mon-dim: #6f7f7a;
+
+  /* 필름·라이트박스 */
+  --lightbox: #eef4f8;
+  --lightbox-glow: #ffffff;
+  --film: #151c22;
+  --film-2: #202a33;
+  --bone: #dfe7ec;
+
+  /* 카드 종류 띠 */
+  --kind-procedure: #2c5d70;
+  --kind-drug: #b0425a;
+  --kind-diagnostic: #3c7d4a;
+  --kind-side: #c99a2e;
+
+  /* 반응 등급 */
+  --g-key: #b8860b;
+  --g-weak: #2f7d4f;
+  --g-normal: #3a4456;
+  --g-resistant: #8a93a1;
+  --g-immune: #8a93a1;
+  --g-harmful: #c23a2b;
+
+  /* 의도 */
+  --int-attack: #c23a2b;
+  --int-debuff: #6b4fa0;
+  --int-buff: #c07a12;
+  --int-defend: #3f6d8f;
+  --int-comp: #d46a1f;
+  --int-card: #9a7a1c;
+
+  /* 서체 */
+  --f-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --f-num: "Barlow Condensed", "Arial Narrow", "IBM Plex Sans KR", sans-serif;
+  --f-stamp: "Black Han Sans", "IBM Plex Sans KR", "Apple SD Gothic Neo", sans-serif;
+  --f-hand: "Nanum Pen Script", "Apple SD Gothic Neo", cursive;
+
+  /* 크기 */
+  --stage-w: 1280px;
+  --stage-h: 720px;
+  --banner-h: 46px;
+  --card-w: 140px;
+  --card-h: 196px;
+  --r-card: 3px;
+  --shadow-paper: 0 1px 0 rgba(28, 36, 51, 0.06), 0 2px 6px rgba(28, 36, 51, 0.12);
+  --shadow-lift: 0 10px 24px rgba(28, 36, 51, 0.28), 0 2px 4px rgba(28, 36, 51, 0.16);
+}
