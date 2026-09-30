@@ -22,22 +22,51 @@ function intentTip(it: IntentView): React.ReactNode {
   return (
     <>
       <div className="tip-title">
-        {it.pressureLabel}
+        {it.pressureLabel} · {it.bandLabel}
         {it.moveName ? ` — ${it.moveName}` : ""}
       </div>
-      {it.parts.map((p, i) => (
-        <div key={i}>
-          {p.kind === "attack" && `활력 ${p.value}${p.hits && p.hits > 1 ? ` × ${p.hits}회` : ""}${p.label ? " (안정화 무시)" : ""} — 안정화가 먼저 막는다`}
-          {p.kind === "debuff" && `환자에게 ${p.label}`}
-          {p.kind === "buff" && `질병 강화: ${p.label}`}
-          {p.kind === "defend" && `질병이 버틴다 (질병 안정화 ${p.value})`}
-          {p.kind === "complication" && `합병증 예고: ${p.value}턴 뒤 발동`}
-          {p.kind === "card" && `덱에 ${p.label} 카드를 넣는다`}
-          {p.kind === "special" && (p.label ?? "알 수 없음")}
-        </div>
-      ))}
-      {!it.moveName && <div className="tip-sub">무슨 일인지는 확진해야 이름이 보인다. 지금은 어떤 방향으로 나빠지는지만 안다.</div>}
+      {it.parts ? (
+        it.parts.map((p, i) => (
+          <div key={i}>
+            {p.kind === "attack" && `활력 ${p.value}${p.hits && p.hits > 1 ? ` × ${p.hits}회` : ""}${p.label ? " (안정화 무시)" : ""} — 안정화가 먼저 막는다`}
+            {p.kind === "debuff" && `환자에게 ${p.label}`}
+            {p.kind === "buff" && `질병 강화: ${p.label}`}
+            {p.kind === "defend" && `질병이 버틴다 (질병 안정화 ${p.value})`}
+            {p.kind === "complication" && `합병증 예고: ${p.value}턴 뒤 발동`}
+            {p.kind === "card" && `덱에 ${p.label} 카드를 넣는다`}
+            {p.kind === "special" && (p.label ?? "알 수 없음")}
+          </div>
+        ))
+      ) : (
+        <>
+          <div>
+            예상 활력 손실 {it.bandRange} (약 {it.estimate}) — 안정화가 먼저 막는다
+          </div>
+          {it.pressure === "complication" && <div>합병증을 예고한다. 예고된 턴이 되면 크게 나빠진다</div>}
+          <div className="tip-sub">확진 전에는 어느 방향으로 얼마나 나빠질지만 안다. 정확한 수치와 내용은 일어난 뒤에야 보인다.</div>
+        </>
+      )}
     </>
+  );
+}
+
+function IntentBody({ it, small }: { it: IntentView; small?: boolean }) {
+  if (it.parts)
+    return (
+      <>
+        {it.parts.map((p, i) => (
+          <span key={i} className={`intent-part k-${p.kind}`}>
+            <IntentIcon kind={p.kind} size={small ? 14 : p.kind === "attack" ? 22 : 18} />
+            {intentText(p) && <span className="intent-num num">{intentText(p)}</span>}
+          </span>
+        ))}
+      </>
+    );
+  return (
+    <span className={`intent-part intent-band b-${it.band}`}>
+      <IntentIcon kind={it.pressure === "complication" ? "complication" : "attack"} size={small ? 14 : 20} />
+      <span className="intent-num">{it.bandLabel}</span>
+    </span>
   );
 }
 
@@ -48,23 +77,13 @@ function IntentRow({ view }: { view: EnemyView }) {
     <div className="intent-row">
       <div className={`intent pr-${first.pressure}`} tabIndex={0} {...tipProps(intentTip(first), "top")}>
         <span className="intent-pressure">{first.pressureLabel}</span>
-        {first.parts.map((p, i) => (
-          <span key={i} className={`intent-part k-${p.kind}`}>
-            <IntentIcon kind={p.kind} size={p.kind === "attack" ? 22 : 18} />
-            {intentText(p) && <span className="intent-num num">{intentText(p)}</span>}
-          </span>
-        ))}
+        <IntentBody it={first} />
         {first.moveName && <span className="intent-name">{first.moveName}</span>}
       </div>
       {second && (
         <div className="intent intent-next" tabIndex={0} {...tipProps(intentTip(second), "top")}>
           <span className="intent-next-label">다음</span>
-          {second.parts.map((p, i) => (
-            <span key={i} className={`intent-part k-${p.kind}`}>
-              <IntentIcon kind={p.kind} size={14} />
-              {intentText(p) && <span className="intent-num num">{intentText(p)}</span>}
-            </span>
-          ))}
+          <IntentBody it={second} small />
         </div>
       )}
     </div>

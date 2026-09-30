@@ -40,7 +40,7 @@ export { canPlay, commitCheck, returnCheck, REVISE_COST } from "./combat";
 export { actFloors, treasureFloor, MAP_WIDTH, reachableFromStart } from "./map";
 export { resistancePct, GRADE_PCT, PLAN_PCT } from "./damage";
 export { LEVEL_LABEL, LEVEL_RANK, scoreDifferential, channelValue, bestChannels, expectedFindings } from "./evidence";
-export { PRESSURE_LABEL } from "./enemy-ai";
+export { PRESSURE_LABEL, BAND_LABEL, BAND_RANGE, bandOf, intentSignature, moveSignature } from "./enemy-ai";
 export { textbook, cardTextbook, textbookSummary, isTreatmentCard, organismsOf } from "./textbook";
 export { formularyItems, previewDiscover, procedureRisk } from "./choice";
 export * from "./types";

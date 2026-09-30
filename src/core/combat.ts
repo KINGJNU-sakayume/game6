@@ -14,16 +14,26 @@ import type { CardInstance, CombatState, EffectCtx, EffectOp, EncounterDef, Enem
 /** 문제 하나에 비전형 소견이 섞일 확률 (%) */
 export const ATYPICAL_PCT = 50;
 
-function createEnemy(state: GameState, problem: EncounterDef["problems"][number], index: number): EnemyState {
+/** 시험·분석 도구용: 숨은 정답을 정해 전투를 시작한다 (난수 소모는 그대로) */
+export interface ForcedTruth {
+  disease: string;
+  variant?: string;
+  /** null이면 비전형 소견 없음 */
+  atypical?: { channel: string; finding: string } | null;
+}
+
+function createEnemy(state: GameState, problem: EncounterDef["problems"][number], index: number, force?: ForcedTruth): EnemyState {
   const pres = presentationDef(problem.presentation);
   const rng = state.rng.encounter;
-  const diseaseId = pickWeighted(rng, pres.candidates.map((c) => [c.disease, c.weight] as const));
+  const drawn = pickWeighted(rng, pres.candidates.map((c) => [c.disease, c.weight] as const));
+  const diseaseId = force?.disease ?? drawn;
   const def = diseaseDef(diseaseId);
   const range = pres.burden ?? def.severity;
   let sev = randRange(rng, range[0], range[1]);
   if (problem.hpPct) sev = Math.max(1, Math.floor((sev * problem.hpPct) / 100));
   let variantId: string | undefined;
   if (def.variants?.length) variantId = pickWeighted(rng, def.variants.map((v) => [v.id, v.weight] as const));
+  if (force?.variant) variantId = force.variant;
   const res: Record<string, number> = {};
   for (const [k, v] of Object.entries(def.acquiredResistance?.start ?? {})) if (v) res[k] = v;
   const e: EnemyState = {
@@ -56,10 +66,14 @@ function createEnemy(state: GameState, problem: EncounterDef["problems"][number]
     const [channel, finding] = atyp[randInt(rng, atyp.length)]!;
     e.atypical = { channel, finding };
   }
+  if (force && force.atypical !== undefined) {
+    if (force.atypical) e.atypical = force.atypical;
+    else delete e.atypical;
+  }
   return e;
 }
 
-export function startCombat(state: GameState, encounterId: string, kind: CombatState["kind"]): void {
+export function startCombat(state: GameState, encounterId: string, kind: CombatState["kind"], force?: ForcedTruth[]): void {
   const enc = encounterDef(encounterId);
   const key = `${state.seed}:${state.run.act}:${state.run.floor}`;
   const deck: CardInstance[] = state.run.deck.map((ci) => ({ uid: ci.uid, cardId: ci.cardId, upgraded: ci.upgraded }));
@@ -95,7 +109,7 @@ export function startCombat(state: GameState, encounterId: string, kind: CombatS
   shuffleInPlace(c.rng.shuffle, c.drawPile);
   state.combat = c;
   state.phase = "combat";
-  c.enemies = enc.problems.map((p, i) => createEnemy(state, p, i));
+  c.enemies = enc.problems.map((p, i) => createEnemy(state, p, i, force?.[i]));
   log(c, "info", enc.title ?? "호출");
   c.enemies.forEach((e, i) => {
     const pres = presentationDef(e.presentationId);

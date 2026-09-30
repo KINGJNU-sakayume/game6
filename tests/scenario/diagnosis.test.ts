@@ -94,6 +94,8 @@ describe("감별 목록 (진단 점수 대신)", () => {
   it("관찰한 소견은 언제나 실제 질병의 교과서 소견(또는 등록된 비전형 소견)이다", () => {
     for (const d of db().diseases) {
       for (const ch of db().channels.map((c) => c.id)) {
+        // 활력 징후는 내원 양상 공통(채점하지 않음), 경과 소견은 행동이 남긴다
+        if (ch === "vitals" || ch === "course") continue;
         const e = makeEnemy({ disease: d.id, variant: d.variants?.[0]?.id }, 0);
         const f = actualFinding(e, ch);
         expect(expectedFindings(d.id, ch), `${d.id} ${ch}`).toContain(f);

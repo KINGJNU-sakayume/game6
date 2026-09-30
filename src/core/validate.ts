@@ -1,11 +1,12 @@
 // 콘텐츠 검증과 가치 예산 계산. design.md §3.10, D4
 import { describeCard } from "./describe";
 import { allMoves } from "./disease";
+import { displaySig, moveSignature } from "./enemy-ai";
 import { expectedFindings } from "./evidence";
 import { gradeFor, hypotheticalEnemy } from "./textbook";
 import { isPlayerKnownCondition } from "./values";
 import { cardDef, installContent } from "./registry";
-import type { CardDef, Condition, ContentDB, EffectOp, TriggerDef } from "./types";
+import type { CardDef, Condition, ContentDB, EffectOp, EnemyState, TriggerDef } from "./types";
 
 const KNOWN_CUSTOM = new Set(["relic_flash", "partner_side_effect", "random_discard", "draw_penalty"]);
 const SE_CAP: Record<string, (specs: { dest: string; count: number; persistent: boolean }[]) => boolean> = {
@@ -354,6 +355,51 @@ export function validateContent(dbx: ContentDB): ValidationResult {
           });
           if (!split) errors.push(`내원 양상 ${p.id}: ${a}와 ${b}를 구별할 소견이 없다`);
         }
+    }
+  }
+  // 경과 대본 (v2.1): 감별 대상이 여럿이면 보이는 의도가 정답과 무관해야 한다
+  const courseFindings = new Set<string>();
+  for (const d of dbx.diseases) {
+    for (const m of allMoves(d)) if (m.course) courseFindings.add(m.course);
+    for (const ph of d.phases ?? []) if (ph.course) courseFindings.add(ph.course);
+  }
+  for (const fid of courseFindings) {
+    const f = dbx.findings.find((x) => x.id === fid);
+    if (!f) errors.push(`경과 소견 없음: ${fid}`);
+    else if (f.weight > 2) errors.push(`경과 소견 ${fid}: 가중치는 2 이하 (${f.weight})`);
+    else if (!fid.startsWith("crs_")) errors.push(`경과 소견 ${fid}: crs_ 접두어를 쓴다`);
+  }
+  const TRUTH_FREE = (c: Condition): boolean => {
+    if ("all" in c) return c.all.every(TRUTH_FREE);
+    if ("any" in c) return c.any.every(TRUTH_FREE);
+    if ("not" in c) return TRUTH_FREE(c.not);
+    return "turnAtLeast" in c || "noCountdown" in c;
+  };
+  for (const p of dbx.presentations) {
+    if (p.candidates.length < 2) {
+      if (p.course) warnings.push(`내원 양상 ${p.id}: 감별 대상이 하나인데 경과 대본이 있다`);
+      continue;
+    }
+    if (!p.vitals) errors.push(`내원 양상 ${p.id}: 감별 대상이 여럿이면 공통 활력 징후(vitals)가 필요하다`);
+    else if (!findingIds.has(p.vitals)) errors.push(`내원 양상 ${p.id}: 없는 활력 소견 ${p.vitals}`);
+    if (!p.course) {
+      errors.push(`내원 양상 ${p.id}: 감별 대상이 여럿이면 경과 대본(course)이 필요하다`);
+      continue;
+    }
+    const sigs = new Set<string>([...(p.course.opening ?? []), ...Object.keys(p.course.weights), ...(p.course.rules ?? []).map((r) => r.sig)]);
+    for (const r of p.course.rules ?? []) if (!TRUTH_FREE(r.when)) errors.push(`내원 양상 ${p.id}: 대본 조건은 턴·예고 유무만 쓸 수 있다`);
+    for (const c of p.candidates) {
+      const d = dbx.diseases.find((x) => x.id === c.disease);
+      if (!d) continue;
+      const e = { diseaseId: d.id, presentationId: p.id } as EnemyState;
+      const have = new Set(d.moves.map((m) => moveSignature(e, m)));
+      for (const sig of sigs) {
+        if (!have.has(sig)) errors.push(`내원 양상 ${p.id}: ${d.id}에 칸 ${sig}의 행동이 없다 (가진 칸: ${[...have].join(", ")})`);
+        if (displaySig(sig).split(":").length !== 2) errors.push(`내원 양상 ${p.id}: 잘못된 칸 이름 ${sig}`);
+      }
+      // 질병이 대본 밖에서 스스로 의도를 정하는 경로(행동 규칙·시작 행동)는 단계 AI로만 쓴다
+      for (const ph of d.phases ?? []) if (ph.ai && !ph.course && !ph.enterAtSeverityPct) warnings.push(`질병 ${d.id}/${ph.id}: 단계 AI가 경과 소견 없이 의도를 바꾼다`);
+      for (const ph of d.phases ?? []) if (ph.ai && !ph.course) errors.push(`내원 양상 ${p.id}: ${d.id}의 단계 ${ph.id}가 자기 행동표로 바뀌는데 경과 소견(course)이 없다`);
     }
   }
   for (const e of dbx.encounters) for (const x of e.problems) if (!presIds.has(x.presentation)) errors.push(`인카운터 ${e.id}: 없는 내원 양상 ${x.presentation}`);

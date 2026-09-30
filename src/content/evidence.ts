@@ -29,6 +29,8 @@ export const CHANNELS = [
   { id: "gs_urine", nameKo: "소변 그람 염색", group: "micro", normal: "gs_none", gramOf: "cx_urine" },
   { id: "gs_sputum", nameKo: "객담 그람 염색", group: "micro", normal: "gs_none", gramOf: "cx_sputum" },
   { id: "gs_wound", nameKo: "상처 그람 염색", group: "micro", normal: "gs_none", gramOf: "cx_wound" },
+  // 경과 관찰: 검사로 고르는 경로가 아니다. 질병의 행동이 일어난 뒤에만 소견이 생긴다 (v2.1)
+  { id: "course", nameKo: "경과 관찰", group: "course", normal: "crs_none" },
 ] satisfies ChannelDef[];
 
 const f = (id: string, text: string, weight: 0 | 1 | 2 | 4, extra: Partial<FindingDef> = {}): FindingDef => ({ id, text, weight, ...extra });
@@ -60,6 +62,10 @@ export const FINDINGS: FindingDef[] = [
   f("vt_bleeding", "혈압 96/60, 맥박 112, 주사 자리에서 피가 샘", 2),
   f("vt_obstructive", "혈압 78/60, 맥박 132, 목정맥이 불룩함", 2),
   f("vt_septic", "39.6℃, 맥박 128, 혈압 88/52", 2),
+  // v2.1: 감별 대상이 여럿인 내원 양상이 함께 쓰는 활력 징후 (채점하지 않는다)
+  f("vt_dyspneic", "호흡수 28, SpO₂ 91%, 맥박 112", 1),
+  f("vt_ward_hypox", "호흡수 26, 산소 2L에도 SpO₂ 89%, 맥박 110", 1),
+  f("vt_vent_crash", "인공호흡기 고압 경보, SpO₂ 82%, 맥박 130", 1),
   // ── 발병 양상 ──
   f("on_nonspecific", "경과에 뚜렷한 특징이 없다", 0),
   f("on_migrating", "명치 통증이 몇 시간 뒤 오른쪽 아래로 옮겨 감", 2),
@@ -270,6 +276,14 @@ export const FINDINGS: FindingDef[] = [
   f("gs_none", "균이 보이지 않음", 0),
   f("gs_gpc", "그람 양성 알균", 2),
   f("gs_gnr", "그람 음성 막대균", 2),
+  // ── 경과 관찰 (v2.1): 질병이 나빠지는 방식. 일어난 뒤에만 보인다 ──
+  f("crs_none", "특별한 경과 변화 없음", 0),
+  f("crs_rlq_localized", "통증이 오른쪽 아랫배로 모이고 반발통이 생김", 2),
+  f("crs_lip_swelling", "입술과 혀가 눈에 띄게 부어오름", 2),
+  f("crs_urticaria", "두드러기가 온몸으로 번짐", 2),
+  f("crs_vf", "모니터에 심실세동이 나타남", 2),
+  f("crs_pulsus", "맥압이 좁아지고 숨 들이쉴 때 맥이 약해짐(기이맥)", 2),
+  f("crs_airway_pressure", "기도 압력이 치솟고 한쪽 가슴이 움직이지 않음", 2),
   // ── 치료 반응 (core가 치료를 쓸 때 기록한다) ──
   f("rx_good", "뚜렷한 호전", 2),
   f("rx_partial", "부분적인 반응", 1),

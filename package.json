@@ -18,7 +18,8 @@
     "content:report": "tsx src/sim/content-report.ts",
     "sim": "tsx src/sim/cli.ts",
     "replay": "tsx src/sim/replay.ts",
-    "shots": "tsx scripts/screenshots.ts"
+    "shots": "tsx scripts/screenshots.ts",
+    "intent:leak": "tsx scripts/intent-leak.ts"
   },
   "dependencies": {
     "react": "18.3.1",

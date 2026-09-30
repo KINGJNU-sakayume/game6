@@ -74,7 +74,7 @@ export class ClinicianBot {
   private threat(state: GameState): number {
     let t = 0;
     for (const v of this.views(state)) {
-      t += v.intents[0]?.total ?? 0;
+      t += v.intents[0]?.estimate ?? 0;
       for (const cd of v.countdowns) if (cd.turnsLeft <= 1) t += 18;
     }
     return t;

@@ -1,0 +1,61 @@
+bot=clinician
+런 200회 · 승률 17.5% · 평균 도달 층 21.6 · 도달 막 {"1":16,"2":65,"3":119}
+사망 원인: 간성뇌증 27, 파종성 혈관내 응고 20, 패혈성 쇼크 17, 인공호흡기 관련 폐렴 14, 봉와직염 12, 부작용(출혈) 11, 급성 심부전 악화 11, 급성 신우신염 11, 폐렴 6, 중심정맥관 관련 혈류감염 4, 급성 호흡곤란 증후군 4, 심방세동 빠른 심실 반응 4, 대량 상부위장관 출혈 4, 부작용(신독성) 4, 부작용(부정맥) 3, C. difficile 감염 3, 상태(hypotension) 2, 급성 충수염 2, 급성 신손상 2, 부작용(고칼륨혈증) 1, 심장 눌림증 1, 섬망 1, 긴장성 기흉 1
+전투당 활력 손실:
+  1막 boss        8.6 (n=184, 평균 3.4턴)
+  1막 elite      11.3 (n=57, 평균 2.9턴)
+  1막 normal      7.1 (n=742, 평균 3.3턴)
+  2막 elite      10.8 (n=63, 평균 4.6턴)
+  2막 gate        6.0 (n=123, 평균 4.4턴)
+  2막 normal      9.2 (n=743, 평균 3.7턴)
+  3막 boss       26.3 (n=55, 평균 9.8턴)
+  3막 elite       5.6 (n=38, 평균 3.7턴)
+  3막 normal     11.8 (n=453, 평균 4.6턴)
+── 결정 지표 ──
+턴 시작 손패 중 쓸 수 없는 카드 비율      7.6%
+치료 카드 드로우 중 적응증 없는 비율      7.9%
+보상 화면당 의미 있는 선택지 수          2.55 (89.6%)
+얻고 한 번도 쓰지 않은 덱 카드 비율       14.7%
+얻고 한 번도 쓰지 않은 처방집 항목 비율   48.9%
+전투당 임상 결정(선택지) 수             9.0
+결정 한 번에 고를 수 있는 선택지 평균     2.63
+턴당 그럴듯한 행동 수                   5.42
+전투당 얻은 소견                        3.5
+첫 작업 진단 정확도                     98.9% (전투당 0.58회, 평균 1.07턴째)
+전투 종료 시 작업 진단 정확도            100.0%
+작업 진단 변경 / 전투                   0.00
+항생제: 경험적 95.9% / 표적 4.1% (투여 3144)
+범위 축소 / 전투                        0.00
+처방 반납 / 전투                        0.20
+기대 반응 없음(치료 실패 소견) / 전투     0.17
+선택지 분포 (상위 30):
+  saline:standard                    2326
+  med_order:saline                   1614
+  consult:id                         1409
+  consult:id_empiric                 1011
+  physical_exam:ex_cardio            887
+  consult:pulm                       854
+  insulin:standard                   668
+  consult:pu_ct                      651
+  med_order:ceftriaxone              572
+  physical_exam:ex_abd               485
+  med_order:heparin                  466
+  epinephrine:im                     454
+  consult:gi                         376
+  intubation:now                     373
+  history:hx_onset                   366
+  history:hx_assoc                   326
+  consult:psych                      321
+  consult:ps_antipsychotic           321
+  med_order:insulin                  317
+  procedure_order:intubation         315
+  endoscopy:now                      312
+  source_control:now                 312
+  med_order:vancomycin               299
+  med_order:epinephrine              290
+  consult:id_culture                 281
+  consult:nephro                     273
+  consult:gi_scope                   260
+  consult:internal                   257
+  consult:im_insulin                 257
+  consult:cardio                     238

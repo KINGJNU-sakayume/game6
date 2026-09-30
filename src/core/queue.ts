@@ -2,12 +2,12 @@
 import { cardDef, channelDef, db, diseaseDef, relicDef, statusDef, tagDef } from "./registry";
 import { currentOrganism, findMove, phaseDef } from "./disease";
 import { calcEnemyAttack, calcPlayerDamage } from "./damage";
-import { bestChannels, isObserved, observe, observeResponse, pendingChannels } from "./evidence";
+import { bestChannels, isObserved, observe, observeCourse, observeResponse, pendingChannels } from "./evidence";
 import { consultRecommendDefs, consultSpecialtyDefs, discoverDefs, openChoice, procedureDecisionDefs, procedureRisk, stopDrugDefs } from "./choice";
 import { responseClass } from "./textbook";
 import { administer, diseaseLabel, emitPersistentOnly, emitSideEffects, endDrugs, harmfulResponse, tickDrugs } from "./drugs";
 import { addCardTo, addGeneratedCard, drawCards, exhaustInstance, matchesFilter, pileOf, removeFromPiles } from "./cards";
-import { planIntents, replanAll } from "./enemy-ai";
+import { intentLabel, moveForSig, planIntents, replanAll, scriptFor } from "./enemy-ai";
 import { fire } from "./triggers";
 import { pickOne } from "./rng";
 import { drugTagActive, evalCondition, evalValue, resolveTargets } from "./values";
@@ -86,8 +86,16 @@ export function enterPhase(state: GameState, enemy: EnemyState, phase: number): 
   enemy.phase = phase;
   const ph = phaseDef(enemy);
   emit({ type: "phase_changed", target: enemy.uid, phase, name: ph?.nameKo ?? "" });
-  log(c, "warn", `${diseaseLabel(enemy)}: ${ph?.nameKo ?? "상태 변화"}`);
-  replanAll(state, enemy);
+  // 확진 전에는 단계 이름을 쓰지 않는다: 그 변화가 드러나는 것은 경과 소견뿐이다
+  log(c, "warn", enemy.knowledge >= 2 ? `${diseaseLabel(enemy)}: ${ph?.nameKo ?? "상태 변화"}` : `${diseaseLabel(enemy)}: 경과가 바뀌었다`);
+  if (ph?.course) observeCourse(state, enemy, ph.course);
+  const script = scriptFor(enemy);
+  if (script) {
+    // 대본이 계속 의도를 정한다: 보인 의도는 그대로 두고 칸에 맞는 새 단계의 행동으로 바꾼다
+    const planned = enemy.ai.planned;
+    enemy.ai.planned = [];
+    for (const p of planned) enemy.ai.planned.push({ ...p, moveId: moveForSig(enemy, p.sig ?? "").id });
+  } else replanAll(state, enemy);
   if (ph?.onEnter?.length) enqueueFront(state, ph.onEnter, { owner: { kind: "enemy", id: enemy.uid } });
 }
 
@@ -652,6 +660,11 @@ function execute(state: GameState, item: QueuedEffect): void {
       if (c.current?.cardUid === op.cardUid) c.current = undefined;
       return;
     }
+    case "course_finding": {
+      const e = ctx.owner.kind === "enemy" ? findEnemy(c, ctx.owner.id) : undefined;
+      if (e && !e.cured) observeCourse(state, e, op.finding);
+      return;
+    }
     case "purge_self": {
       const i = c.limbo.findIndex((x) => x.uid === op.cardUid);
       if (i >= 0) exhaustInstance(c, c.limbo.splice(i, 1)[0]!);
@@ -836,19 +849,22 @@ function runPhase(state: GameState, name: TurnPhase, enemyUid?: string): void {
       for (const cd of due) {
         const mv = findMove(e, cd.moveId);
         emit({ type: "countdown_fired", target: e.uid, moveId: cd.moveId });
-        log(c, "enemy", `${diseaseLabel(e)}: ${mv.nameKo}!`);
+        log(c, "enemy", `${diseaseLabel(e)}: ${e.knowledge >= 2 ? mv.nameKo : "예고된 합병증"}!`);
         for (const x of mv.effects) queued.push({ op: x, ctx: ectx });
+        if (mv.course) queued.push({ op: { op: "course_finding", finding: mv.course }, ctx: ectx });
       }
       const planned = e.ai.planned.shift();
       if (planned) {
         e.ai.history.push(planned.moveId);
+        (e.ai.sigs ??= []).push(planned.sig ?? "");
         const mv = findMove(e, planned.moveId);
         emit({ type: "enemy_move", target: e.uid, moveId: mv.id, name: mv.nameKo });
-        log(c, "enemy", `${diseaseLabel(e)}: ${mv.nameKo}`);
+        log(c, "enemy", `${diseaseLabel(e)}: ${e.knowledge >= 2 ? mv.nameKo : intentLabel(planned.sig)}`);
         for (const x of mv.effects) {
           const opx = x.op === "damage" && planned.hits !== undefined ? { ...x, hits: planned.hits } : x;
           queued.push({ op: opx, ctx: ectx });
         }
+        if (mv.course) queued.push({ op: { op: "course_finding", finding: mv.course }, ctx: ectx });
       }
       queued.push({ op: phaseOp("enemy_turn_end", e.uid), ctx: SYSTEM });
       c.queue.unshift(...queued);

@@ -1489,3 +1489,9 @@
 .coach-x:hover {
   color: var(--ink);
 }
+
+/* v2.1 의도 크기 등급 (확진 전) */
+.intent-band .intent-num { font-weight: 700; letter-spacing: 0.02em; }
+.intent-band.b-mild .intent-num { color: #5b6b3a; }
+.intent-band.b-moderate .intent-num { color: #9a5a12; }
+.intent-band.b-severe .intent-num { color: #a3201c; }

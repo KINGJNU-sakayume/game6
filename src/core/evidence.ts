@@ -1,8 +1,8 @@
 // 근거와 감별 진단. 소견은 실제 질병에서 나오고, 가설의 신뢰도는 "관찰한 소견 × 교과서 예상"으로만 계산한다.
 // 이 파일의 판정 함수(scoreDifferential, channelValue, channelHint …)는 엔진 진실(적의 diseaseId·변이)을 읽지 않는다.
 // 진실을 읽는 것은 actualFinding 하나뿐이며, 그 결과는 곧바로 플레이어에게 공개되는 소견이다.
-import { cardDef, channelDef, db, diseaseDef, findingDef, hasFinding, organismDef } from "./registry";
-import { phaseDef, variantDef } from "./disease";
+import { cardDef, channelDef, db, diseaseDef, findingDef, hasFinding, organismDef, presentationDef } from "./registry";
+import { allMoves, phaseDef, variantDef } from "./disease";
 import { textbook } from "./textbook";
 import { fire } from "./triggers";
 import { emit, log } from "./util";
@@ -80,6 +80,15 @@ export function expectedFindings(diseaseId: DiseaseId, channel: ChannelId): Find
   if (hit) return hit;
   const def = diseaseDef(diseaseId);
   const out = new Set<FindingId>();
+  if (channel === COURSE_CHANNEL) {
+    // 경과 소견: 이 질병의 행동·단계가 남길 수 있는 소견 전부 + "특별한 경과 없음"
+    out.add(channelDef(channel).normal);
+    for (const mv of allMoves(def)) if (mv.course) out.add(mv.course);
+    for (const ph of def.phases ?? []) if (ph.course) out.add(ph.course);
+    const arr = [...out];
+    m.set(key, arr);
+    return arr;
+  }
   const variants = def.variants?.length ? def.variants.map((v) => v.id) : [undefined];
   const phases = [0, ...(def.phases ?? []).map((_, i) => i + 1)];
   for (const v of variants) for (const ph of phases) out.add(findingFromDef(def, channel, v, ph));
@@ -100,8 +109,16 @@ function expectedFor(diseaseId: DiseaseId, obs: Observation): FindingId[] {
   return isResponseChannel(obs.channel) ? expectedResponse(diseaseId, obs) : expectedFindings(diseaseId, obs.channel);
 }
 
+/** 경과 경로: 질병이 나빠지는 방식에서 얻는 소견 */
+export const COURSE_CHANNEL = "course";
+
 /** 엔진 진실: 실제 질병(현재 변이·단계)의 소견. 이 값은 관찰되는 즉시 공개된다 */
 export function actualFinding(enemy: EnemyState, channel: ChannelId): FindingId {
+  // 감별 대상이 여럿인 내원 양상은 모두 같은 활력 징후로 온다
+  if (channel === "vitals") {
+    const pv = presentationDef(enemy.presentationId).vitals;
+    if (pv) return pv;
+  }
   if (enemy.atypical?.channel === channel) return enemy.atypical.finding;
   return findingFromDef(diseaseDef(enemy.diseaseId), channel, variantDef(enemy)?.id, phaseDef(enemy) ? enemy.phase : 0);
 }
@@ -145,6 +162,7 @@ export function scoreDifferential(enemy: Pick<EnemyState, "hypotheses" | "observ
     const forObs: number[] = [];
     const againstObs: number[] = [];
     enemy.observations.forEach((o, i) => {
+      if (o.neutral) return;
       const r = compareFinding(expectedFor(h, o), o.finding);
       if (r.gain > 0) {
         support += r.gain;
@@ -276,9 +294,20 @@ export function observe(state: GameState, enemy: EnemyState, channel: ChannelId,
   }
   const finding = actualFinding(enemy, channel);
   const text = findingDef(finding).text;
-  const changes = recordObservation(state, enemy, { channel, finding, turn: state.combat?.turn ?? 0 }, text, silent);
+  const obs: Observation = { channel, finding, turn: state.combat?.turn ?? 0 };
+  if (channel === "vitals" && presentationDef(enemy.presentationId).vitals) obs.neutral = true;
+  const changes = recordObservation(state, enemy, obs, text, silent);
   if (state.combat && !silent) log(state.combat, "diag", `${channelDef(channel).nameKo}: ${text}${changeText(changes)}`);
   return true;
+}
+
+/** 경과 소견: 질병의 행동이 일어난 뒤 드러난 것. 같은 소견은 한 번만 기록한다 */
+export function observeCourse(state: GameState, enemy: EnemyState, finding: FindingId): void {
+  if (enemy.cured) return;
+  if (enemy.observations.some((o) => o.channel === COURSE_CHANNEL && o.finding === finding)) return;
+  const text = findingDef(finding).text;
+  const changes = recordObservation(state, enemy, { channel: COURSE_CHANNEL, finding, turn: state.combat?.turn ?? 0 }, text, false);
+  if (state.combat) log(state.combat, "diag", `경과 관찰: ${text}${changeText(changes)}`);
 }
 
 const RESPONSE_TEXT: Record<ResponseClass, string> = {

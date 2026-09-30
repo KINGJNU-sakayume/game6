@@ -62,6 +62,22 @@ export type PressureKind =
   | "worsening"
   | "complication";
 
+/** 의도 크기 등급 (확진 전에는 정확한 수치 대신 이것만 보인다). 경미 ≤6 · 중등 7–12 · 심각 ≥13 */
+export type IntentBand = "mild" | "moderate" | "severe";
+
+/**
+ * 내원 양상의 경과 대본. 감별 대상이 둘 이상인 문제는 의도(압박 종류·크기)를 이 대본이 정하고,
+ * 실제 질병은 그 칸에 맞는 자기 행동을 낸다. 그래서 보이는 의도의 순서가 숨은 정답과 무관하다.
+ * 칸 이름은 "종류:등급" (합병증 예고는 "complication:mild@턴").
+ */
+export interface CourseScript {
+  opening?: string[];
+  weights: Record<string, number>;
+  noRepeat?: string[];
+  /** 조건은 플레이어도 아는 것만 (turnAtLeast, noCountdown) */
+  rules?: { when: Condition; sig: string; once?: boolean }[];
+}
+
 // ───────────────────────── 값·조건·명령 ─────────────────────────
 
 export type TargetSel = "patient" | "target" | "all_enemies" | "random_enemy" | "self" | "source";
@@ -225,6 +241,7 @@ export type EffectOp =
   | { op: "card_played"; cardUid: Uid }
   | { op: "finish_card"; cardUid: Uid }
   | { op: "purge_self"; cardUid: Uid }
+  | { op: "course_finding"; finding: FindingId }
   | { op: "phase"; name: TurnPhase; enemyUid?: Uid };
 
 export type TurnPhase =
@@ -272,7 +289,7 @@ export interface KeywordDef {
 
 // ── 근거(소견) 체계 ──
 
-export type ChannelGroup = "vitals" | "history" | "exam" | "lab" | "bedside" | "imaging" | "micro";
+export type ChannelGroup = "vitals" | "history" | "exam" | "lab" | "bedside" | "imaging" | "micro" | "course";
 export type GramClass = "gpc" | "gnr" | "none";
 
 /** 검사 경로 하나 (병력의 한 갈래, 진찰 부위, 검사 항목) */
@@ -311,6 +328,10 @@ export interface PresentationDef {
   burden?: [number, number];
   /** 행동에 압박 종류가 없을 때 쓰는 기본값 (실제 질병 분류로 추정하지 않는다) */
   pressure?: PressureKind;
+  /** 내원 즉시 보이는 활력 징후. 감별 대상 모두가 같은 모습으로 온다 (채점하지 않는다) */
+  vitals?: FindingId;
+  /** 감별 대상이 둘 이상이면 필수: 보이는 의도의 경과 대본 */
+  course?: CourseScript;
 }
 
 export interface RecommendationDef {
@@ -419,6 +440,8 @@ export interface MoveDef {
   hitsRange?: [number, number];
   pressure?: PressureKind;
   effects: EffectOp[];
+  /** 이 행동이 일어난 뒤 관찰되는 경과 소견 (course 경로, 가중치 ≤2). 나빠지는 방식이 곧 근거가 된다 */
+  course?: FindingId;
 }
 
 export interface AiPattern {
@@ -440,6 +463,8 @@ export interface PhaseDef {
   moves?: MoveDef[];
   ai?: AiPattern;
   onEnter?: EffectOp[];
+  /** 이 단계로 넘어갈 때 관찰되는 경과 소견 */
+  course?: FindingId;
 }
 
 export interface VariantDef {
@@ -644,6 +669,8 @@ export interface StatusStack {
 export interface PlannedMove {
   moveId: MoveId;
   hits?: number;
+  /** 경과 대본이 고른 칸 ("종류:등급"). 화면의 의도는 이것만 쓴다 */
+  sig?: string;
 }
 
 /** 얻은 소견 하나. rx: 경로는 치료 반응 */
@@ -654,6 +681,8 @@ export interface Observation {
   /** 치료 반응 관찰이면 그 치료의 태그·카드 (교과서 예상 반응을 계산하는 데 쓴다) */
   cardId?: CardId;
   tags?: Tag[];
+  /** 채점하지 않는 관찰 (내원 양상 공통 활력 징후) */
+  neutral?: boolean;
 }
 
 export interface EnemyState {
@@ -680,7 +709,7 @@ export interface EnemyState {
   acquiredResistance: Record<Tag, number>;
   resistanceFraction: number;
   phase: number;
-  ai: { history: MoveId[]; planned: PlannedMove[]; planIndex: number; usedOnce: MoveId[] };
+  ai: { history: MoveId[]; planned: PlannedMove[]; planIndex: number; usedOnce: MoveId[]; /** 실행된 의도 칸 (대본용) */ sigs?: string[] };
   countdowns: { moveId: MoveId; turnsLeft: number }[];
   revealNext: boolean;
   planBonus: number;

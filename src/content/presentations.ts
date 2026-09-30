@@ -1,6 +1,15 @@
 // 내원 양상. 한 문제는 주호소 하나로 시작하고, 실제 질병은 감별 대상 중에서 가중치로 뽑아 숨긴다.
 // 질병 부담 범위를 내원 양상 단위로 두는 이유: 질병마다 다르면 숫자만 보고 진단이 드러난다.
-import type { PresentationDef } from "../core/types";
+import type { CourseScript, PresentationDef } from "../core/types";
+
+// 경과 대본 (v2.1): 감별 대상이 여럿이면 보이는 의도(압박 종류·크기 등급)를 내원 양상이 정한다.
+// 후보 질병은 칸마다 자기 행동을 낸다. 효과와 수치는 등급 안에서 달라도 된다(병의 경과는 실제로 다르다).
+/** 흔한 틀: 주 압박 중등 · 주 압박 경미 · 병세 진행 경미 */
+const basic = (kind: string, opening?: string): CourseScript => ({
+  ...(opening ? { opening: [opening] } : {}),
+  weights: { [`${kind}:moderate`]: 45, [`${kind}:mild`]: 30, "worsening:mild": 25 },
+  noRepeat: ["worsening:mild"],
+});
 
 export const PRESENTATIONS = [
   // ── 1막 응급실 ──
@@ -14,6 +23,8 @@ export const PRESENTATIONS = [
     ],
     burden: [30, 34],
     pressure: "pain",
+    vitals: "vt_fever_tachy",
+    course: { opening: ["pain:mild"], weights: { "hemodynamic:moderate": 40, "pain:moderate": 35, "worsening:mild": 25 }, noRepeat: ["worsening:mild"] },
   },
   {
     id: "p_wheeze",
@@ -25,6 +36,8 @@ export const PRESENTATIONS = [
     ],
     burden: [30, 34],
     pressure: "respiratory",
+    vitals: "vt_dyspneic",
+    course: basic("respiratory"),
   },
   {
     id: "p_fever_easy",
@@ -36,6 +49,8 @@ export const PRESENTATIONS = [
     ],
     burden: [34, 38],
     pressure: "infection",
+    vitals: "vt_fever_tachy",
+    course: basic("infection"),
   },
   {
     id: "p_abd_pain",
@@ -48,6 +63,8 @@ export const PRESENTATIONS = [
     ],
     burden: [40, 44],
     pressure: "pain",
+    vitals: "vt_fever_tachy",
+    course: basic("pain", "pain:mild"),
   },
   {
     id: "p_fever",
@@ -59,6 +76,8 @@ export const PRESENTATIONS = [
     ],
     burden: [42, 46],
     pressure: "infection",
+    vitals: "vt_fever_tachy",
+    course: basic("infection"),
   },
   {
     id: "p_dyspnea",
@@ -71,6 +90,8 @@ export const PRESENTATIONS = [
     ],
     burden: [30, 34],
     pressure: "respiratory",
+    vitals: "vt_dyspneic",
+    course: { weights: { "respiratory:moderate": 40, "respiratory:mild": 25, "worsening:mild": 20, "respiratory:severe": 15 }, noRepeat: ["worsening:mild", "respiratory:severe"] },
   },
   {
     id: "p_chest_pain",
@@ -82,6 +103,8 @@ export const PRESENTATIONS = [
     ],
     burden: [64, 70],
     pressure: "cardiac",
+    vitals: "vt_tachy_distress",
+    course: { weights: { "pain:moderate": 40, "hemodynamic:severe": 25, "worsening:mild": 35 }, noRepeat: ["hemodynamic:severe", "worsening:mild"] },
   },
   {
     id: "p_focal_neuro",
@@ -108,6 +131,8 @@ export const PRESENTATIONS = [
     ],
     burden: [48, 54],
     pressure: "pain",
+    vitals: "vt_lowgrade",
+    course: basic("pain", "complication:mild@3"),
   },
   {
     id: "p_confusion",
@@ -119,6 +144,8 @@ export const PRESENTATIONS = [
     ],
     burden: [36, 40],
     pressure: "neuro",
+    vitals: "vt_calm_confused",
+    course: basic("neuro"),
   },
   {
     id: "p_ward_dyspnea",
@@ -130,6 +157,8 @@ export const PRESENTATIONS = [
     ],
     burden: [48, 54],
     pressure: "respiratory",
+    vitals: "vt_ward_hypox",
+    course: basic("respiratory"),
   },
   {
     id: "p_diarrhea",
@@ -141,6 +170,8 @@ export const PRESENTATIONS = [
     ],
     burden: [44, 50],
     pressure: "hemodynamic",
+    vitals: "vt_fever_tachy",
+    course: basic("hemodynamic"),
   },
   {
     id: "p_palpitation",
@@ -159,6 +190,8 @@ export const PRESENTATIONS = [
     ],
     burden: [76, 82],
     pressure: "respiratory",
+    vitals: "vt_tachy_distress",
+    course: { weights: { "respiratory:moderate": 40, "hemodynamic:severe": 30, "worsening:mild": 30 }, noRepeat: ["hemodynamic:severe", "worsening:mild"] },
   },
   {
     id: "p_severe_abd",
@@ -185,6 +218,8 @@ export const PRESENTATIONS = [
     ],
     burden: [58, 64],
     pressure: "infection",
+    vitals: "vt_icu_fever",
+    course: basic("infection"),
   },
   {
     id: "p_oliguria",
@@ -196,6 +231,8 @@ export const PRESENTATIONS = [
     ],
     burden: [54, 60],
     pressure: "renal",
+    vitals: "vt_oliguric",
+    course: basic("renal"),
   },
   {
     id: "p_hypoxemia",
@@ -208,6 +245,8 @@ export const PRESENTATIONS = [
     ],
     burden: [60, 66],
     pressure: "respiratory",
+    vitals: "vt_severe_hypox",
+    course: basic("respiratory"),
   },
   {
     id: "p_bleeding",
@@ -226,6 +265,8 @@ export const PRESENTATIONS = [
     ],
     burden: [80, 86],
     pressure: "hemodynamic",
+    vitals: "vt_obstructive",
+    course: { opening: ["hemodynamic:moderate"], rules: [{ when: { all: [{ noCountdown: true }, { turnAtLeast: 2 }] }, sig: "complication:mild@3" }], weights: { "hemodynamic:moderate": 55, "worsening:mild": 45 }, noRepeat: ["worsening:mild"] },
   },
   {
     id: "p_icu_crash",
@@ -237,6 +278,8 @@ export const PRESENTATIONS = [
     ],
     burden: [78, 84],
     pressure: "respiratory",
+    vitals: "vt_vent_crash",
+    course: { weights: { "respiratory:moderate": 40, "hemodynamic:moderate": 30, "worsening:mild": 30 }, noRepeat: ["worsening:mild"] },
   },
   {
     id: "p_septic",

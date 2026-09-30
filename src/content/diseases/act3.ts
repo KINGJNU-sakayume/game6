@@ -40,8 +40,10 @@ export const ACT3_DISEASES = [
     acquiredResistance: { tags: ALL_ABX, gainPerHit: 2, start: { beta_lactam: 1, fluoroquinolone: 1 } },
     moves: [
       { id: "sputum", nameKo: "가래 증가", pressure: "respiratory", effects: [atk(11)] },
-      { id: "hypoxia", nameKo: "저산소", effects: [atk(7), toPatient("hypoxia", 1)] },
-      { id: "inflame", nameKo: "염증", effects: [toSelf("inflammation", 3), atk(5)] },
+      { id: "hypoxia", nameKo: "저산소", pressure: "respiratory", effects: [atk(6), toPatient("hypoxia", 1)] },
+      { id: "fever_spike", nameKo: "고열", pressure: "infection", effects: [atk(10)] },
+      { id: "rigor", nameKo: "오한", pressure: "infection", effects: [atk(6)] },
+      { id: "inflame", nameKo: "염증", pressure: "worsening", effects: [toSelf("inflammation", 3), atk(5)] },
     ],
     ai: { weights: { sputum: 45, hypoxia: 30, inflame: 25 }, noRepeat: ["inflame"] },
     art: { region: "chest", lesion: [0.64, 0.62, 0.12] },
@@ -74,7 +76,8 @@ export const ACT3_DISEASES = [
     definitive: [{ tags: ["dialysis"], text: "투석: 요독과 칼륨이 교정되었다", effects: [clearSelf("aggravation"), { op: "exhaust_cards", from: ["hand", "draw", "discard"], filter: { ids: ["hyperkalemia"] }, amount: "all" }] }],
     moves: [
       { id: "uremia", nameKo: "요독", pressure: "renal", effects: [atk(10)] },
-      { id: "hyperkalemia", nameKo: "칼륨 상승", effects: [addCard("hyperkalemia", 1, "draw_random"), atk(5)] },
+      { id: "hyperkalemia", nameKo: "칼륨 상승", pressure: "renal", effects: [addCard("hyperkalemia", 1, "draw_random"), atk(5)] },
+      { id: "acidosis_rise", nameKo: "대사성 산증 진행", pressure: "worsening", effects: [toSelf("aggravation", 2), atk(4)] },
       { id: "overload", nameKo: "체액 과다", pressure: "respiratory", effects: [atk(6), toPatient("weak", 1)] },
     ],
     ai: { weights: { uremia: 45, hyperkalemia: 30, overload: 25 }, noRepeat: ["hyperkalemia"] },
@@ -107,7 +110,7 @@ export const ACT3_DISEASES = [
     definitive: [{ tags: ["airway"], text: "폐 보호 환기: 산소화가 안정되었다", effects: [clearSelf("aggravation")] }],
     moves: [
       { id: "alveolar", nameKo: "폐포 손상", pressure: "respiratory", effects: [atk(11)] },
-      { id: "refractory", nameKo: "난치성 저산소혈증", effects: [atk(6), toPatient("hypoxia", 1)] },
+      { id: "refractory", nameKo: "난치성 저산소혈증", pressure: "respiratory", effects: [atk(6), toPatient("hypoxia", 1)] },
       { id: "fibrosis", nameKo: "섬유화", pressure: "worsening", effects: [toSelf("aggravation", 2), atk(5)] },
     ],
     ai: { weights: { alveolar: 45, refractory: 35, fibrosis: 20 }, noRepeat: ["fibrosis"] },
@@ -174,8 +177,8 @@ export const ACT3_DISEASES = [
     definitive: [{ tags: ["source_control"], text: "카테터 제거: 생물막이 사라져 항생제가 잘 듣는다", effects: [cancel, { op: "plan_bonus", pct: 30, target: "target" }] }],
     moves: [
       { id: "bacteremia", nameKo: "균혈증", pressure: "infection", effects: [atk(10)] },
-      { id: "rigors", nameKo: "오한", pressure: "infection", effects: [atk(4, 3)] },
-      { id: "biofilm", nameKo: "생물막", effects: [block(12), atk(4)] },
+      { id: "rigors", nameKo: "오한", pressure: "infection", effects: [atk(3, 2)] },
+      { id: "biofilm", nameKo: "생물막", pressure: "worsening", effects: [block(12), atk(4)] },
     ],
     ai: { weights: { bacteremia: 40, rigors: 35, biofilm: 25 }, noRepeat: ["biofilm"] },
     art: { region: "chest", lesion: [0.3, 0.24, 0.08] },
@@ -208,8 +211,8 @@ export const ACT3_DISEASES = [
     definitive: [{ tags: ["pericardiocentesis"], text: "심낭 배액: 심장이 다시 찬다", effects: [cancel, clearSelf("aggravation"), extra(10)] }],
     moves: [
       { id: "low_output", nameKo: "심박출 감소", pressure: "hemodynamic", effects: [atk(12)] },
-      { id: "jvd", nameKo: "경정맥 팽창", pressure: "hemodynamic", effects: [block(10), toSelf("aggravation", 1)] },
-      { id: "pea_warning", nameKo: "무맥성 전기활동 예고", effects: [warn("pea", 3)] },
+      { id: "jvd", nameKo: "경정맥 팽창", pressure: "worsening", effects: [block(10), toSelf("aggravation", 1)] },
+      { id: "pea_warning", nameKo: "무맥성 전기활동 예고", pressure: "complication", effects: [warn("pea", 3)], course: "crs_pulsus" },
       { id: "pea", nameKo: "무맥성 전기활동", effects: [atk(24)] },
     ],
     ai: {
@@ -248,8 +251,10 @@ export const ACT3_DISEASES = [
     definitive: [{ tags: ["chest_tube"], text: "감압 성공: 흉강 내압이 빠졌다", effects: [cancel, clearSelf("aggravation"), extra(10)] }],
     moves: [
       { id: "pressure", nameKo: "흉강 내압 상승", pressure: "worsening", effects: [toSelf("aggravation", 3), atk(5)] },
-      { id: "shift", nameKo: "종격동 편위", pressure: "hemodynamic", effects: [atk(13)] },
-      { id: "failure", nameKo: "호흡 부전", effects: [atk(8), toPatient("hypoxia", 1)] },
+      { id: "shift", nameKo: "종격동 편위", pressure: "hemodynamic", effects: [atk(12)] },
+      { id: "failure", nameKo: "호흡 부전", pressure: "respiratory", effects: [atk(8), toPatient("hypoxia", 1)] },
+      { id: "arrest_warning", nameKo: "심정지 예고", pressure: "complication", effects: [warn("arrest", 3)], course: "crs_airway_pressure" },
+      { id: "arrest", nameKo: "폐쇄성 심정지", pressure: "hemodynamic", effects: [atk(24)] },
     ],
     ai: { weights: { pressure: 30, shift: 40, failure: 30 }, noRepeat: ["pressure"] },
     art: { region: "chest", lesion: [0.66, 0.42, 0.2] },
