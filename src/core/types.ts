@@ -332,6 +332,8 @@ export interface PresentationDef {
   vitals?: FindingId;
   /** 감별 대상이 둘 이상이면 필수: 보이는 의도의 경과 대본 */
   course?: CourseScript;
+  /** 감별 대상 조합의 의학적 근거 (소유자 검토용) */
+  medical?: MedicalNote;
 }
 
 export interface RecommendationDef {
@@ -696,10 +698,15 @@ export interface EnemyState {
   observations: Observation[];
   workingDx?: DiseaseId;
   workingDxTurn?: number;
+  /** 텔레메트리: 이 문제에서 작업 진단을 처음 정했는가, 그 뒤 몇 번 바뀌었는가 (배제 후 다시 정함·확진으로 바뀜 포함) */
+  dxCommitted?: boolean;
+  dxChanges?: number;
   /** 배양으로 원인균이 확인되었는가 */
   organismKnown: boolean;
   /** 엔진 진실: 이 환자에게서 비전형으로 나타나는 소견 하나 */
   atypical?: { channel: ChannelId; finding: FindingId };
+  /** 엔진 진실: 두 번째(약한, 가중치 ≤1) 비전형 소견 */
+  atypical2?: { channel: ChannelId; finding: FindingId };
   severity: number;
   maxSeverity: number;
   stability: number;
@@ -911,6 +918,12 @@ export interface RunStats {
   commitsCorrect: number;
   revisions: number;
   commitTurnSum: number;
+  /** 문제마다 처음 작업 진단이 생긴 때(플레이어가 정했거나 확진으로 자동): 수·맞은 수·턴 합 */
+  firstDx?: number;
+  firstDxCorrect?: number;
+  firstDxTurnSum?: number;
+  /** 작업 진단이 한 번이라도 바뀐 문제 수 (플레이어 변경, 배제 뒤 다시 정함, 확진으로 교체) */
+  problemsRevised: number;
   /** 전투가 끝났을 때 작업 진단이 있던 문제 수와 그중 맞은 수 */
   finalDx: number;
   finalDxCorrect: number;

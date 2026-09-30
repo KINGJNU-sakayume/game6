@@ -1,7 +1,7 @@
 // 감별 진단: 검사는 피해가 아니라 소견을 만들고, 소견이 가설의 신뢰도를 바꾼다. 확진·작업 진단·치료 반응·배양.
 import { describe, expect, it } from "vitest";
 import { act, choose, makeCombat, makeEnemy, play, playChoose } from "../helpers";
-import { db, diseaseDef, expectedFindings, legalActions, LEVEL_RANK, scoreDifferential, visibleEnemyInfo } from "../../src/core";
+import { db, diseaseDef, expectedFindings, findingDef, legalActions, LEVEL_RANK, scoreDifferential, visibleEnemyInfo } from "../../src/core";
 import { actualFinding, observe, refreshKnowledge } from "../../src/core/evidence";
 import type { GameState } from "../../src/core";
 
@@ -53,7 +53,9 @@ describe("감별 목록 (진단 점수 대신)", () => {
   });
 
   it("가설이 하나만 남으면 확진: 병례집 기록, 작업 진단 자동 설정, 질병 이름 공개", () => {
-    let s = makeCombat({ hand: ["physical_exam", "imaging"], enemies: [{ disease: "cap", variant: "pneumococcus" }], orders: 3 });
+    // v2.1: 배제에는 반대 근거 5가 필요하다 (특징 소견 둘 + 병력 하나)
+    let s = makeCombat({ hand: ["history", "physical_exam", "imaging"], enemies: [{ disease: "cap", variant: "pneumococcus", hypotheses: ["pyelo", "cap"] }], orders: 3 });
+    s = playChoose(s, "history", ["hx_assoc"]).state;
     s = playChoose(s, "physical_exam", ["ex_cardio"]).state;
     const r = playChoose(s, "imaging", ["xray"]);
     s = r.state;
@@ -72,17 +74,22 @@ describe("감별 목록 (진단 점수 대신)", () => {
       for (const cand of p.candidates) {
         const d = diseaseDef(cand.disease);
         const variants = d.variants?.map((v) => v.id) ?? [undefined];
-        const atypicals: ([string, string] | undefined)[] = [undefined, ...Object.entries(d.atypical ?? {}).map(([k, v]) => [k, v!] as [string, string])];
+        const list = Object.entries(d.atypical ?? {}).map(([k, v]) => [k, v!] as [string, string]);
+        // 비전형 없음, 하나, 그리고 약한 두 번째 비전형까지 (게임이 만들 수 있는 모든 조합)
+        const combos: [string, string][][] = [[], ...list.map((a) => [a])];
+        for (const a of list) for (const b of list) if (a[0] !== b[0] && findingDef(b[1]).weight <= 1) combos.push([a, b]);
         for (const variant of variants) {
-          for (const atypical of atypicals) {
+          for (const combo of combos) {
+            const atypical = combo[0];
             const s = makeCombat({ enemies: [{ disease: cand.disease, variant, hypotheses: p.candidates.map((c) => c.disease) }] });
             const e = s.combat!.enemies[0]!;
             if (atypical) e.atypical = { channel: atypical[0], finding: atypical[1] };
+            if (combo[1]) e.atypical2 = { channel: combo[1][0], finding: combo[1][1] };
             for (const ch of channels) observe(s, e, ch, true);
             refreshKnowledge(s, e, true);
             const row = scoreDifferential(e).find((r) => r.diseaseId === cand.disease)!;
             expect(row.ruledOut, `${p.id} ${cand.disease}/${variant} atypical=${!!atypical}`).toBe(false);
-            expect(row.against).toBeLessThanOrEqual(2);
+            expect(row.against).toBeLessThanOrEqual(3);
             checked++;
           }
         }

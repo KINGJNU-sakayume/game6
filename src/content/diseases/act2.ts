@@ -29,7 +29,7 @@ export const ACT2_DISEASES = [
       ct: "ct_cellulitis",
       cx_wound: "cx_wound_mssa",
     },
-    atypical: { hx_risk: "rk_none", hx_onset: "on_acute" },
+    atypical: { hx_risk: "rk_none", hx_onset: "on_acute", ex_limb: "lb_unilateral_calf" },
     effectiveness: {},
     variants: [
       { id: "mssa", weight: 60, nameKo: "연쇄알균·MSSA", organism: "mssa_strep" },
@@ -71,7 +71,7 @@ export const ACT2_DISEASES = [
       pocus: "us_dvt",
       ct: "ct_venous_clot",
     },
-    atypical: { hx_risk: "rk_none", hx_assoc: "as_none" },
+    atypical: { hx_risk: "rk_none", hx_assoc: "as_leg_hot" },
     effectiveness: { anticoagulant: "weak", thrombolytic: "resistant", antiplatelet: "immune" },
     definitive: [{ tags: ["anticoagulant"], text: "항응고: 혈전이 떨어져 나갈 위험을 막았다", effects: [cancel] }],
     moves: [
@@ -110,7 +110,7 @@ export const ACT2_DISEASES = [
       pocus: "us_blines_plump_ivc",
       ct: "ct_pulm_edema",
     },
-    atypical: { hx_risk: "rk_none", hx_onset: "on_days" },
+    atypical: { hx_risk: "rk_none", hx_onset: "on_days", ex_cardio: "cd_wheeze" },
     effectiveness: { loop_diuretic: "weak", fluid: "harmful", beta_blocker: "harmful", vasopressor: "resistant" },
     definitive: [{ tags: ["loop_diuretic"], text: "이뇨: 폐부종이 빠진다", effects: [clearSelf("aggravation")] }],
     moves: [
@@ -146,7 +146,7 @@ export const ACT2_DISEASES = [
       lab_chem: "chem_ammonia_high",
       lab_coag: "coag_prolonged_pt",
     },
-    atypical: { hx_assoc: "as_none", ex_abd: "ab_soft" },
+    atypical: { hx_assoc: "as_none", ex_abd: "ab_soft", ex_neuro: "nr_inattention" },
     effectiveness: { ammonia_lowering: "weak", cns_depressant: "harmful" },
     definitive: [{ tags: ["ammonia_lowering"], text: "암모니아가 떨어지며 의식이 맑아진다", effects: [{ op: "exhaust_cards", from: ["hand", "draw", "discard"], filter: { ids: ["confusion"] }, amount: "all" }] }],
     moves: [
@@ -175,7 +175,7 @@ export const ACT2_DISEASES = [
       hx_risk: "rk_elderly_sedative",
       ex_neuro: "nr_inattention",
     },
-    atypical: { hx_onset: "on_acute", hx_assoc: "as_none" },
+    atypical: { hx_onset: "on_somnolence", hx_assoc: "as_none" },
     effectiveness: { antipsychotic: "weak", benzodiazepine: "harmful" },
     moves: [
       { id: "night_agitation", nameKo: "야간 초조", pressure: "neuro", effects: [atk(6), addCard("confusion", 1, "discard")] },
@@ -209,7 +209,7 @@ export const ACT2_DISEASES = [
       ct: "ct_colitis",
     },
     organism: "cdiff",
-    atypical: { hx_risk: "rk_recent_hosp_abx", lab_cbc: "cbc_leukocytosis" },
+    atypical: { hx_risk: "rk_recent_hosp_abx", lab_cbc: "cbc_leukocytosis", hx_assoc: "as_vomit_diarrhea" },
     effectiveness: { cdi_risk: "harmful" },
     passives: [{ on: "drug_administered", condition: { eventDrugTag: "cdi_risk" }, effects: [toSelf("aggravation", 2)] }],
     moves: [
@@ -288,7 +288,7 @@ export const ACT2_DISEASES = [
       pocus: "us_rv_dilation",
       ct: "ct_pe",
     },
-    atypical: { hx_assoc: "as_none", ex_limb: "lb_normal" },
+    atypical: { hx_assoc: "as_none", ex_limb: "lb_normal", ex_cardio: "cd_crackles_focal" },
     effectiveness: { anticoagulant: "weak", thrombolytic: "weak", fluid: "resistant", antiplatelet: "immune" },
     definitive: [
       { tags: ["thrombolytic"], text: "혈전용해: 우심실 부담이 풀렸다", effects: [clearSelf("aggravation"), { op: "damage", amount: 10, target: "target" }] },
@@ -327,12 +327,14 @@ export const ACT2_DISEASES = [
       pocus: "us_flat_ivc",
       ct: "ct_pancreatitis",
     },
+    atypical: { hx_risk: "rk_none", hx_assoc: "as_gi_upset" },
     effectiveness: { fluid: "weak" },
     definitive: [{ tags: ["fluid"], text: "조기 수액: 괴사 진행을 막았다", effects: [cancel] }],
     moves: [
       { id: "epigastric", nameKo: "상복부 통증", pressure: "pain", effects: [atk(11)] },
       { id: "sirs", nameKo: "전신 염증 반응", pressure: "worsening", effects: [toSelf("inflammation", 3), atk(4)] },
       { id: "back_pain", nameKo: "등으로 뻗치는 통증", pressure: "pain", effects: [atk(5)] },
+      { id: "vomiting", nameKo: "반복 구토", pressure: "hemodynamic", effects: [atk(7), toPatient("dehydration", 1)] },
       { id: "ileus", nameKo: "장마비", effects: [atk(5), addCard("nausea", 2, "discard")] },
       { id: "necrosis_warning", nameKo: "괴사 진행", effects: [warn("necrosis", 4)] },
       { id: "necrosis", nameKo: "췌장 괴사", effects: [raise(10), toSelf("aggravation", 2)] },

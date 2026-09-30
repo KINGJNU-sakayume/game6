@@ -1,6 +1,6 @@
 // 결정 지표(텔레메트리). 승률만이 아니라 "결정이 생기는가"를 잰다.
 // 모든 판정은 플레이어 정보(EnemyView, 교과서)로 한다. 진실을 쓰는 지표(작업 진단 정확도)는 전투가 끝난 뒤 통계에서만 읽는다.
-import { cardDef, cardTextbook, contextRelevance, isPlayable, isTreatmentCard, legalActions, newRun, step, visibleEnemyInfo } from "../core";
+import { cardDef, cardTextbook, contextRelevance, isPlayable, isTreatmentCard, legalActions, newRun, scoreDifferential, step, visibleEnemyInfo } from "../core";
 import type { Action, GameEvent, GameState } from "../core";
 
 export interface RunMetrics {
@@ -27,7 +27,21 @@ export interface RunMetrics {
   plausibleSum: number;
   choicePoints: number;
   choiceOptionsSum: number;
+  /** 감별 대상이 둘 이상인 문제 수, 그중 검사 하나로 강력 의심에 이른 수 */
+  ddxProblems: number;
+  strongAfterOne: number;
+  strongReached: number;
+  /** 작업 진단을 한 번 이상 바꾼 전투 */
+  combatsWithRevision: number;
+  /** 감별 대상이 둘 이상인 일반 전투: 검사 없이 끝낸 전투와 검사한 전투의 활력 손실 */
+  blindLoss: number[];
+  investigatedLoss: number[];
   stats: GameState["run"]["stats"];
+}
+
+/** 검사로 얻은 소견인가 (공통 활력 징후·경과 소견·치료 반응 제외) */
+function isInvestigation(ch: string, neutral?: boolean): boolean {
+  return !neutral && ch !== "course" && !ch.startsWith("rx:");
 }
 
 /** 치료 카드가 지금 감별 목록의 어떤 가설에도 듣지 않는가 (플레이어 정보) */
@@ -89,8 +103,19 @@ export function runWithMetrics(seed: string, choose: (s: GameState) => Action, m
     plausibleSum: 0,
     choicePoints: 0,
     choiceOptionsSum: 0,
+    ddxProblems: 0,
+    strongAfterOne: 0,
+    strongReached: 0,
+    combatsWithRevision: 0,
+    blindLoss: [],
+    investigatedLoss: [],
     stats: s.run.stats,
   };
+  // 전투 하나의 감별 기록: 문제별 검사 수와 처음 강력 의심에 이른 시점의 검사 수
+  let ddx = new Map<string, { inv: number; strongAt?: number }>();
+  let revisedThisCombat = false;
+  let anyInvestigation = false;
+  let multiCombat = false;
   let lastTurn = -1;
   let combatStartVit = 0;
   let combatAct = 1;
@@ -140,9 +165,37 @@ export function runWithMetrics(seed: string, choose: (s: GameState) => Action, m
     const r = step(s, a);
     s = r.state;
     observeEvents(m, before, s, r.events);
+    for (const ev of r.events) if (ev.type === "diagnosis_committed" && ev.revised) revisedThisCombat = true;
+    const cs = s.combat ?? (before.phase === "combat" ? before.combat : undefined);
+    if (cs) {
+      for (const e of cs.enemies) {
+        if (e.hypotheses.length < 2) continue;
+        multiCombat = true;
+        const rec = ddx.get(e.uid) ?? { inv: 0 };
+        rec.inv = e.observations.filter((o) => isInvestigation(o.channel, o.neutral)).length;
+        if (rec.inv > 0) anyInvestigation = true;
+        if (rec.strongAt === undefined && scoreDifferential(e).some((h) => h.level === "strong" && !h.ruledOut)) rec.strongAt = rec.inv;
+        if ((e.dxChanges ?? 0) > 0) revisedThisCombat = true;
+        ddx.set(e.uid, rec);
+      }
+    }
     if (before.phase === "combat" && s.phase !== "combat") {
       m.combats += 1;
-      m.combatLoss.push({ act: combatAct, kind: combatKind, loss: combatStartVit - s.run.vitality, turns: before.combat?.turn ?? 0 });
+      const loss = combatStartVit - s.run.vitality;
+      m.combatLoss.push({ act: combatAct, kind: combatKind, loss, turns: before.combat?.turn ?? 0 });
+      for (const rec of ddx.values()) {
+        m.ddxProblems += 1;
+        if (rec.strongAt !== undefined) {
+          m.strongReached += 1;
+          if (rec.strongAt <= 1) m.strongAfterOne += 1;
+        }
+      }
+      if (revisedThisCombat) m.combatsWithRevision += 1;
+      if (multiCombat && combatKind === "normal") (anyInvestigation ? m.investigatedLoss : m.blindLoss).push(loss);
+      ddx = new Map();
+      revisedThisCombat = false;
+      anyInvestigation = false;
+      multiCombat = false;
       lastTurn = -1;
     }
     if (s.phase === "combat" && before.phase !== "combat") lastTurn = -1;
@@ -204,6 +257,14 @@ export interface Aggregate {
   findingsPerCombat: number;
   plausiblePerTurn: number;
   optionsPerChoice: number;
+  strongAfterOnePct: number;
+  strongReachedPct: number;
+  revisionCombatPct: number;
+  problemsRevisedPct: number;
+  firstDxAccuracy: number;
+  firstDxTurn: number;
+  blindLoss: { mean: number; n: number };
+  investigatedLoss: { mean: number; n: number };
 }
 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
@@ -273,6 +334,14 @@ export function aggregate(runs: RunMetrics[]): Aggregate {
     findingsPerCombat: st((s) => s.findingsRevealed) / Math.max(1, combats),
     plausiblePerTurn: sum((r) => r.plausibleSum) / Math.max(1, sum((r) => r.decisionPoints)),
     optionsPerChoice: sum((r) => r.choiceOptionsSum) / Math.max(1, sum((r) => r.choicePoints)),
+    strongAfterOnePct: sum((r) => r.strongAfterOne) / Math.max(1, sum((r) => r.ddxProblems)),
+    strongReachedPct: sum((r) => r.strongReached) / Math.max(1, sum((r) => r.ddxProblems)),
+    revisionCombatPct: sum((r) => r.combatsWithRevision) / Math.max(1, combats),
+    problemsRevisedPct: st((s) => s.problemsRevised ?? 0) / Math.max(1, st((s) => s.commits)),
+    firstDxAccuracy: st((s) => s.firstDxCorrect ?? 0) / Math.max(1, st((s) => s.firstDx ?? 0)),
+    firstDxTurn: st((s) => s.firstDxTurnSum ?? 0) / Math.max(1, st((s) => s.firstDx ?? 0)),
+    blindLoss: { mean: mean(runs.flatMap((r) => r.blindLoss)), n: sum((r) => r.blindLoss.length) },
+    investigatedLoss: { mean: mean(runs.flatMap((r) => r.investigatedLoss)), n: sum((r) => r.investigatedLoss.length) },
   };
 }
 
@@ -294,8 +363,11 @@ export function formatAggregate(a: Aggregate, top = 25): string {
   lines.push(`턴당 그럴듯한 행동 수                   ${a.plausiblePerTurn.toFixed(2)}`);
   lines.push(`전투당 얻은 소견                        ${a.findingsPerCombat.toFixed(1)}`);
   lines.push(`첫 작업 진단 정확도                     ${pct(a.commitAccuracy)} (전투당 ${a.commitsPerCombat.toFixed(2)}회, 평균 ${a.turnsBeforeCommit.toFixed(2)}턴째)`);
+  lines.push(`처음 생긴 작업 진단(확진 자동 포함) 정확도 ${pct(a.firstDxAccuracy)} (평균 ${a.firstDxTurn.toFixed(2)}턴째, 감별 대상 둘 이상)`);
   lines.push(`전투 종료 시 작업 진단 정확도            ${pct(a.finalDxAccuracy)}`);
-  lines.push(`작업 진단 변경 / 전투                   ${a.revisionsPerCombat.toFixed(2)}`);
+  lines.push(`작업 진단 변경 / 전투                   ${a.revisionsPerCombat.toFixed(2)} (작업 진단이 바뀐 전투 ${pct(a.revisionCombatPct)}, 정한 뒤 바뀐 문제 ${pct(a.problemsRevisedPct)})`);
+  lines.push(`검사 하나로 강력 의심에 이른 문제         ${pct(a.strongAfterOnePct)} (강력 의심에 이른 문제 ${pct(a.strongReachedPct)}, 감별 대상 둘 이상)`);
+  lines.push(`검사 없이 끝낸 일반 전투 활력 손실       ${a.blindLoss.mean.toFixed(1)} (n=${a.blindLoss.n}) · 검사한 전투 ${a.investigatedLoss.mean.toFixed(1)} (n=${a.investigatedLoss.n})`);
   lines.push(`항생제: 경험적 ${pct(a.empiricPct)} / 표적 ${pct(1 - a.empiricPct)} (투여 ${a.abxUses})`);
   lines.push(`범위 축소 / 전투                        ${a.deescalationsPerCombat.toFixed(2)}`);
   lines.push(`처방 반납 / 전투                        ${a.returnsPerCombat.toFixed(2)}`);

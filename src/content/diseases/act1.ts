@@ -106,7 +106,7 @@ export const ACT1_DISEASES = [
       ct: "ct_consolidation",
       cx_sputum: "cx_sputum_pneumo",
     },
-    atypical: { ex_cardio: "cd_normal", hx_assoc: "as_none" },
+    atypical: { ex_cardio: "cd_wheeze", hx_assoc: "as_none", hx_onset: "on_acute" },
     effectiveness: {},
     variants: [
       { id: "pneumococcus", weight: 70, nameKo: "폐렴알균", organism: "pneumococcus" },
@@ -153,7 +153,7 @@ export const ACT1_DISEASES = [
       ct: "ct_pyelo",
       cx_urine: "cx_urine_ecoli",
     },
-    atypical: { hx_assoc: "as_gi_upset", ex_abd: "ab_soft" },
+    atypical: { hx_assoc: "as_gi_upset", ex_abd: "ab_diffuse_mild" },
     effectiveness: {},
     variants: [
       { id: "ecoli", weight: 85, nameKo: "대장균", organism: "ecoli" },
@@ -190,7 +190,7 @@ export const ACT1_DISEASES = [
       abga: "abga_resp_fatigue",
       xray: "xr_hyperinflation",
     },
-    atypical: { hx_risk: "rk_none", abga: "abga_hypoxemia" },
+    atypical: { hx_risk: "rk_none", abga: "abga_hypoxemia", hx_onset: "on_days" },
     effectiveness: { beta2_agonist: "weak", corticosteroid: "weak", anaphylaxis_tx: "resistant", beta_blocker: "harmful" },
     definitive: [{ tags: ["beta2_agonist", "corticosteroid"], text: "기관지 확장: 연축이 풀린다", effects: [clearSelf("aggravation")] }],
     moves: [
@@ -223,7 +223,7 @@ export const ACT1_DISEASES = [
       abga: "abga_lactic",
       pocus: "us_flat_ivc",
     },
-    atypical: { hx_onset: "on_acute", hx_risk: "rk_none" },
+    atypical: { hx_onset: "on_acute", hx_risk: "rk_none", ex_limb: "lb_normal" },
     effectiveness: { anaphylaxis_tx: "key", corticosteroid: "resistant", beta_blocker: "harmful" },
     definitive: [{ tags: ["anaphylaxis_tx"], text: "에피네프린: 기도 부종과 혈관 확장이 가라앉는다", effects: [clearSelf("aggravation"), { op: "damage", amount: 8, target: "target" }] }],
     // v2.1: 기도 부종 예고(아나필락시스만의 의도)를 없앴다. 기도 부종은 "호흡 악화(심각)"로 보이고, 일어난 뒤 입술·혀 부종이 경과 소견으로 남는다

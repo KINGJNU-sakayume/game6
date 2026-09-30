@@ -78,6 +78,8 @@ export const ACT3_DISEASES = [
       { id: "uremia", nameKo: "요독", pressure: "renal", effects: [atk(10)] },
       { id: "hyperkalemia", nameKo: "칼륨 상승", pressure: "renal", effects: [addCard("hyperkalemia", 1, "draw_random"), atk(5)] },
       { id: "acidosis_rise", nameKo: "대사성 산증 진행", pressure: "worsening", effects: [toSelf("aggravation", 2), atk(4)] },
+      { id: "encephalopathy", nameKo: "요독성 뇌병증", pressure: "neuro", effects: [atk(8)] },
+      { id: "drowsy", nameKo: "기면", pressure: "neuro", effects: [atk(5), addCard("confusion", 1, "discard")] },
       { id: "overload", nameKo: "체액 과다", pressure: "respiratory", effects: [atk(6), toPatient("weak", 1)] },
     ],
     ai: { weights: { uremia: 45, hyperkalemia: 30, overload: 25 }, noRepeat: ["hyperkalemia"] },

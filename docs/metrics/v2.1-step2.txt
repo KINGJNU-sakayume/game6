@@ -1,0 +1,64 @@
+bot=clinician
+런 200회 · 승률 19.0% · 평균 도달 층 21.2 · 도달 막 {"1":29,"2":47,"3":124}
+사망 원인: 간성뇌증 29, 파종성 혈관내 응고 24, 패혈성 쇼크 20, 봉와직염 13, 급성 신우신염 11, 인공호흡기 관련 폐렴 7, 부작용(출혈) 7, 급성 심부전 악화 7, 폐렴 6, 부작용(신독성) 5, 급성 호흡곤란 증후군 4, 심방세동 빠른 심실 반응 4, 부작용(부정맥) 3, 부작용(고칼륨혈증) 3, 상태(hypotension) 3, 천식 급성 악화 2, 중심정맥관 관련 혈류감염 2, 대량 상부위장관 출혈 2, 심장 눌림증 2, 급성 신손상 1, 중증 급성 췌장염 1, 급성 뇌경색 1, 급성 충수염 1, 아나필락시스 1, 심부정맥 혈전증 1, 섬망 1, ? 1
+전투당 활력 손실:
+  1막 boss        8.8 (n=171, 평균 3.4턴)
+  1막 elite      14.1 (n=50, 평균 3.2턴)
+  1막 normal      9.8 (n=732, 평균 3.9턴)
+  2막 elite       9.1 (n=51, 평균 4.2턴)
+  2막 gate        6.4 (n=126, 평균 4.5턴)
+  2막 normal      8.1 (n=696, 평균 3.9턴)
+  3막 boss       25.9 (n=65, 평균 9.8턴)
+  3막 elite      11.9 (n=41, 평균 5.7턴)
+  3막 normal     10.9 (n=474, 평균 4.8턴)
+── 결정 지표 ──
+턴 시작 손패 중 쓸 수 없는 카드 비율      7.7%
+치료 카드 드로우 중 적응증 없는 비율      9.2%
+보상 화면당 의미 있는 선택지 수          2.59 (90.8%)
+얻고 한 번도 쓰지 않은 덱 카드 비율       8.5%
+얻고 한 번도 쓰지 않은 처방집 항목 비율   44.8%
+전투당 임상 결정(선택지) 수             10.5
+결정 한 번에 고를 수 있는 선택지 평균     2.65
+턴당 그럴듯한 행동 수                   5.71
+전투당 얻은 소견                        4.8
+첫 작업 진단 정확도                     98.2% (전투당 0.56회, 평균 1.79턴째)
+처음 생긴 작업 진단(확진 자동 포함) 정확도 98.7% (평균 1.58턴째, 감별 대상 둘 이상)
+전투 종료 시 작업 진단 정확도            100.0%
+작업 진단 변경 / 전투                   0.01 (작업 진단이 바뀐 전투 1.1%, 정한 뒤 바뀐 문제 1.9%)
+검사 하나로 강력 의심에 이른 문제         2.5% (강력 의심에 이른 문제 88.7%, 감별 대상 둘 이상)
+검사 없이 끝낸 일반 전투 활력 손실       1.3 (n=3) · 검사한 전투 9.1 (n=1791)
+항생제: 경험적 91.0% / 표적 9.0% (투여 3069)
+범위 축소 / 전투                        0.00
+처방 반납 / 전투                        0.16
+기대 반응 없음(치료 실패 소견) / 전투     0.21
+선택지 분포 (상위 30):
+  saline:standard                    2730
+  med_order:saline                   1836
+  consult:id                         1319
+  physical_exam:ex_cardio            923
+  consult:pulm                       673
+  consult:id_empiric                 656
+  insulin:standard                   614
+  history:hx_onset                   609
+  med_order:ceftriaxone              609
+  history:hx_assoc                   595
+  physical_exam:ex_abd               573
+  epinephrine:im                     533
+  consult:pu_ct                      488
+  med_order:heparin                  480
+  consult:id_culture                 457
+  lab_workup:lab_chem                436
+  imaging:pocus                      414
+  imaging:xray                       404
+  consult:surgery                    382
+  physical_exam:ex_limb              382
+  consult:gi                         348
+  source_control:now                 346
+  consult:nephro                     341
+  med_order:vancomycin               340
+  endoscopy:now                      331
+  intubation:now                     330
+  med_order:epinephrine              328
+  consult:su_ct                      317
+  med_order:insulin                  296
+  procedure_order:intubation         281

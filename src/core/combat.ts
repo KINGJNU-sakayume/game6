@@ -1,10 +1,10 @@
 // 전투 시작·카드 사용·결정·작업 진단·반납·턴 종료. design.md §3.7
-import { cardDef, diseaseDef, encounterDef, presentationDef, relicDef } from "./registry";
+import { cardDef, diseaseDef, encounterDef, findingDef, hasFinding, presentationDef, relicDef } from "./registry";
 import { planIntents } from "./enemy-ai";
 import { consumeCostModifiers, costOf, drawCards, exhaustInstance, maxCardsPerTurn, removeFromPiles } from "./cards";
 import { deriveStream, pickWeighted, randInt, randRange, shuffleInPlace } from "./rng";
 import { enqueueBack, enqueueFront, phaseOp, runQueue } from "./queue";
-import { observe, scoreDifferential } from "./evidence";
+import { expectedFindings, observe, scoreDifferential } from "./evidence";
 import { resolveOption } from "./choice";
 import { isTreatmentCard } from "./textbook";
 import { fire } from "./triggers";
@@ -12,7 +12,9 @@ import { emit, findEnemy, hasRelic, livingEnemies, log, modifierValue } from "./
 import type { CardInstance, CombatState, EffectCtx, EffectOp, EncounterDef, EnemyState, GameState, Uid } from "./types";
 
 /** 문제 하나에 비전형 소견이 섞일 확률 (%) */
-export const ATYPICAL_PCT = 50;
+export const ATYPICAL_PCT = 60;
+/** 비전형 소견이 있는 문제 중 약한 비전형 소견이 하나 더 있을 확률 (%) */
+export const SECOND_ATYPICAL_PCT = 30;
 
 /** 시험·분석 도구용: 숨은 정답을 정해 전투를 시작한다 (난수 소모는 그대로) */
 export interface ForcedTruth {
@@ -60,13 +62,24 @@ function createEnemy(state: GameState, problem: EncounterDef["problems"][number]
   };
   if (variantId) e.variantId = variantId;
   if (problem.atkPct && problem.atkPct !== 100) e.atkPct = problem.atkPct;
-  // 비전형 발현: 환자는 교과서대로 오지 않는다. 문제마다 확률적으로 한 소견이 교과서와 다르다
+  // 비전형 발현: 환자는 교과서대로 오지 않는다. 문제마다 확률적으로 한 소견이 교과서와 다르다.
+  // v2.1: 같은 내원 양상의 다른 후보가 기대하는 소견(흉내)을 더 자주 고른다. 일부 환자는 약한(가중치 ≤1) 비전형 소견이 하나 더 있다.
+  // 비전형의 반대 근거 합은 3 이하라 정답은 배제되지 않는다(배제는 4).
   const atyp = Object.entries(def.atypical ?? {}).filter((x): x is [string, string] => !!x[1]);
   if (atyp.length && pres.candidates.length > 1 && randInt(rng, 100) < ATYPICAL_PCT) {
-    const [channel, finding] = atyp[randInt(rng, atyp.length)]!;
+    const rivals = pres.candidates.map((c) => c.disease).filter((d) => d !== diseaseId);
+    const mimic = (ch: string, f: string) => rivals.some((r) => expectedFindings(r, ch).includes(f));
+    const weighted = atyp.map(([ch, f]) => [[ch, f], mimic(ch, f) ? 3 : 1] as [[string, string], number]);
+    const [channel, finding] = pickWeighted(rng, weighted);
     e.atypical = { channel, finding };
+    const weak = atyp.filter(([ch, f]) => ch !== channel && (hasFinding(f) ? findingDef(f).weight : 0) <= 1);
+    if (weak.length && randInt(rng, 100) < SECOND_ATYPICAL_PCT) {
+      const [c2, f2] = weak[randInt(rng, weak.length)]!;
+      e.atypical2 = { channel: c2, finding: f2 };
+    }
   }
   if (force && force.atypical !== undefined) {
+    delete e.atypical2;
     if (force.atypical) e.atypical = force.atypical;
     else delete e.atypical;
   }
@@ -280,11 +293,13 @@ export function commitDiagnosis(state: GameState, targetUid: Uid, diseaseId: str
   c.orders -= check.cost;
   const stats = state.run.stats;
   if (revised) stats.revisions += 1;
-  else {
+  if (!e.dxCommitted) {
+    e.dxCommitted = true;
+    noteFirstDx(state, e, diseaseId);
     stats.commits += 1;
     stats.commitTurnSum += c.turn;
     if (diseaseId === e.diseaseId) stats.commitsCorrect += 1; // 텔레메트리 전용. 화면에는 퇴원 뒤에만 보인다
-  }
+  } else noteDxChange(state, e);
   e.workingDx = diseaseId;
   e.workingDxTurn = c.turn;
   emit({ type: "diagnosis_committed", target: e.uid, diseaseId, revised });
@@ -332,6 +347,21 @@ export function returnCard(state: GameState, cardUid: Uid): string | null {
   drawCards(state, 1);
   runQueue(state);
   return null;
+}
+
+/** 텔레메트리: 이 문제에 처음 작업 진단이 생겼다 (감별 대상이 둘 이상인 문제만) */
+export function noteFirstDx(state: GameState, e: EnemyState, diseaseId: string): void {
+  if (e.hypotheses.length < 2) return;
+  const st = state.run.stats;
+  st.firstDx = (st.firstDx ?? 0) + 1;
+  st.firstDxTurnSum = (st.firstDxTurnSum ?? 0) + (state.combat?.turn ?? 0);
+  if (diseaseId === e.diseaseId) st.firstDxCorrect = (st.firstDxCorrect ?? 0) + 1;
+}
+
+/** 텔레메트리: 작업 진단이 다른 진단으로 바뀌었다 */
+export function noteDxChange(state: GameState, e: EnemyState): void {
+  e.dxChanges = (e.dxChanges ?? 0) + 1;
+  if (e.dxChanges === 1) state.run.stats.problemsRevised += 1;
 }
 
 export function combatDeathCause(state: GameState): string | undefined {

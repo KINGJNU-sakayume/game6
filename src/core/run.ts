@@ -80,6 +80,7 @@ export function newRun(seed: string, options: RunOptions = {}): GameState {
         commitsCorrect: 0,
         revisions: 0,
         commitTurnSum: 0,
+        problemsRevised: 0,
         finalDx: 0,
         finalDxCorrect: 0,
         abxEmpiric: 0,

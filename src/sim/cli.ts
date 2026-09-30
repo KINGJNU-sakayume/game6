@@ -19,7 +19,7 @@ const N = Number(arg("n", "100"));
 const botName = arg("bot", "clinician");
 
 function makeBot(seed: string) {
-  return botName === "random" ? new RandomBot(seed) : new ClinicianBot(seed);
+  return botName === "random" ? new RandomBot(seed) : new ClinicianBot(seed, 0, { blind: botName === "blind" });
 }
 
 function mean(xs: number[]) {
@@ -30,7 +30,7 @@ function sd(xs: number[]) {
   return Math.sqrt(mean(xs.map((x) => (x - m) ** 2)));
 }
 
-function combatOnce(seed: string, deck: string[], encounterId: string, act: 1 | 2 | 3): { win: boolean; loss: number; turns: number; se: number; correct: number } {
+function combatOnce(seed: string, deck: string[], encounterId: string, act: 1 | 2 | 3, blind?: boolean): { win: boolean; loss: number; turns: number; se: number; correct: number } {
   const f = arg("formulary", "");
   let s: GameState = newRun(seed, { deck, formulary: f ? (FORMULARIES[f] ?? f.split(",")) : FORMULARIES[`act${act}`] });
   s.run.act = act;
@@ -38,7 +38,7 @@ function combatOnce(seed: string, deck: string[], encounterId: string, act: 1 | 
   const enc = db().encounters.find((e) => e.id === encounterId)!;
   const kind = enc.pool === "elite" ? "elite" : enc.pool === "boss" ? "boss" : enc.pool === "gate" ? "gate" : "normal";
   startCombat(s, encounterId, kind);
-  const bot = makeBot(seed);
+  const bot = blind === undefined ? makeBot(seed) : new ClinicianBot(seed, 0, { blind });
   const start = s.run.vitality;
   let guard = 0;
   let lastTurn = 0;
@@ -70,6 +70,34 @@ if (cmd === "combat") {
       (mean(res.map((r) => r.correct)) * 100).toFixed(0).padStart(5),
     );
   }
+} else if (cmd === "blind") {
+  // 검사한 전투와 검사 없이 치료만 한 전투를 같은 시드로 짝지어 비교한다 (감별 대상이 둘 이상인 일반·정예 전투)
+  let pairs = 0;
+  let better = 0;
+  let worse = 0;
+  const rows: string[] = [];
+  for (const act of [1, 2, 3] as const) {
+    const deck = DECKS[`act${act}`]!;
+    const encs = db().encounters.filter((e) => e.act === act && e.pool !== "boss" && e.pool !== "gate" && e.problems.some((p) => db().presentations.find((x) => x.id === p.presentation)!.candidates.length > 1));
+    for (const e of encs) {
+      const inv = Array.from({ length: N }, (_, i) => combatOnce(`${e.id}-${i}`, deck, e.id, act, false));
+      const bl = Array.from({ length: N }, (_, i) => combatOnce(`${e.id}-${i}`, deck, e.id, act, true));
+      let b = 0;
+      let w = 0;
+      inv.forEach((r, i) => {
+        const x = r.loss + (r.win ? 0 : 50);
+        const y = bl[i]!.loss + (bl[i]!.win ? 0 : 50);
+        if (x < y) b++;
+        else if (x > y) w++;
+      });
+      pairs += N;
+      better += b;
+      worse += w;
+      rows.push(`${e.id.padEnd(16)} 검사 ${mean(inv.map((r) => r.loss)).toFixed(1).padStart(5)} · 검사 없음 ${mean(bl.map((r) => r.loss)).toFixed(1).padStart(5)} · 검사가 나음 ${((b / N) * 100).toFixed(0).padStart(3)}% · 못함 ${((w / N) * 100).toFixed(0).padStart(3)}%`);
+    }
+  }
+  console.log(rows.join("\n"));
+  console.log(`전체 ${pairs}쌍: 검사가 활력을 덜 잃음 ${((better / pairs) * 100).toFixed(1)}% · 더 잃음 ${((worse / pairs) * 100).toFixed(1)}% · 같음 ${(((pairs - better - worse) / pairs) * 100).toFixed(1)}%`);
 } else if (cmd === "run" || cmd === "metrics") {
   const runs = Array.from({ length: N }, (_, i) => {
     const seed = `run-${i}`;

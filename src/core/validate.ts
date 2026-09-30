@@ -296,6 +296,17 @@ export function validateContent(dbx: ContentDB): ValidationResult {
       }
     };
     checkFindings(`질병 ${d.id}`, d.findings);
+    // 가중치 4는 CT와 배양 결과에만 (v2.1: 값싼 검사 하나로 감별이 끝나지 않게)
+    const heavyOk = (ch: string) => ch === "ct" || dbx.channels.find((x) => x.id === ch)?.group === "micro";
+    const checkWeight = (where: string, f: Record<string, string | undefined> | undefined) => {
+      for (const [ch, fid] of Object.entries(f ?? {})) {
+        const w = dbx.findings.find((x) => x.id === fid)?.weight ?? 0;
+        if (w > 2 && !heavyOk(ch)) errors.push(`${where}: ${ch} 소견 ${fid}의 가중치 ${w} — 가중치 4는 CT·배양에만`);
+      }
+    };
+    checkWeight(`질병 ${d.id}`, d.findings);
+    for (const v of d.variants ?? []) checkWeight(`질병 ${d.id}/${v.id}`, v.findings);
+    for (const ph of d.phases ?? []) checkWeight(`질병 ${d.id}/${ph.id}`, ph.findings);
     checkFindings(`질병 ${d.id}/비전형`, d.atypical);
     // 비전형 소견은 실제 질병을 배제할 만큼 강하면 안 된다 (반대 근거 최대 2)
     const fw = (id: string) => dbx.findings.find((x) => x.id === id)?.weight ?? 0;
@@ -304,7 +315,7 @@ export function validateContent(dbx: ContentDB): ValidationResult {
       const cdef = dbx.channels.find((x) => x.id === ch);
       const typicals = [d.findings[ch] ?? cdef?.normal ?? "", ...(d.variants ?? []).map((v) => v.findings?.[ch] ?? d.findings[ch] ?? cdef?.normal ?? "")];
       if (typicals.includes(fid)) errors.push(`질병 ${d.id}: 비전형 소견 ${fid}이(가) 전형 소견과 같다`);
-      for (const t of typicals) if (Math.max(fw(t), fw(fid)) > 2 && fw(fid) !== 0) errors.push(`질병 ${d.id}: 비전형 ${ch} 소견이 너무 강하다 (반대 근거가 2를 넘는다)`);
+      if (fw(fid) > 2) errors.push(`질병 ${d.id}: 비전형 ${ch} 소견이 너무 강하다 (반대 근거가 2를 넘는다)`);
       if (fw(fid) === 0 && typicals.some((t) => fw(t) > 2)) warnings.push(`질병 ${d.id}: 결정적 소견(${ch})이 비전형으로 빠질 수 있다`);
       if (ch === "vitals" || ch.startsWith("cx_") || ch.startsWith("gs_")) errors.push(`질병 ${d.id}: 비전형 소견은 활력·미생물 경로에 둘 수 없다 (${ch})`);
     }

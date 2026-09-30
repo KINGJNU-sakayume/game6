@@ -11,33 +11,37 @@ const basic = (kind: string, opening?: string): CourseScript => ({
   noRepeat: ["worsening:mild"],
 });
 
-export const PRESENTATIONS = [
+export const PRESENTATIONS: PresentationDef[] = [
   // ── 1막 응급실 ──
   {
     id: "p_vomit",
     complaint: "구토와 복통",
     vignette: "새벽부터 여러 번 토했고 배가 아프다고 한다.",
     candidates: [
-      { disease: "gastroenteritis", weight: 65 },
-      { disease: "appendicitis", weight: 35 },
+      { disease: "gastroenteritis", weight: 50 },
+      { disease: "appendicitis", weight: 30 },
+      { disease: "pancreatitis", weight: 20 },
     ],
     burden: [30, 34],
     pressure: "pain",
     vitals: "vt_fever_tachy",
     course: { opening: ["pain:mild"], weights: { "hemodynamic:moderate": 40, "pain:moderate": 35, "worsening:mild": 25 }, noRepeat: ["worsening:mild"] },
+    medical: { fidelity: "unverified", note: "v2.1: 급성 췌장염 추가. 구토와 윗배 통증은 췌장염의 흔한 첫 모습이고, 리파아제·CT로 가른다. 과음력이 단서" },
   },
   {
     id: "p_wheeze",
     complaint: "숨참",
     vignette: "숨이 차서 말을 끊어 가며 한다.",
     candidates: [
-      { disease: "asthma", weight: 65 },
-      { disease: "cap", weight: 35 },
+      { disease: "asthma", weight: 50 },
+      { disease: "cap", weight: 30 },
+      { disease: "chf", weight: 20 },
     ],
     burden: [30, 34],
     pressure: "respiratory",
     vitals: "vt_dyspneic",
     course: basic("respiratory"),
+    medical: { fidelity: "unverified", note: "v2.1: 급성 심부전 악화 추가(심장 천식). 폐부종도 천명음으로 올 수 있고, 수액·β차단제가 해롭다는 점이 천식과 겹쳐 결정이 갈린다. BNP·X선·목정맥으로 가른다" },
   },
   {
     id: "p_fever_easy",
@@ -71,13 +75,15 @@ export const PRESENTATIONS = [
     complaint: "발열과 오한",
     vignette: "열이 나고 온몸이 떨린다.",
     candidates: [
-      { disease: "cap", weight: 55 },
-      { disease: "pyelo", weight: 45 },
+      { disease: "cap", weight: 45 },
+      { disease: "pyelo", weight: 35 },
+      { disease: "cellulitis", weight: 20 },
     ],
     burden: [42, 46],
     pressure: "infection",
     vitals: "vt_fever_tachy",
     course: basic("infection"),
+    medical: { fidelity: "unverified", note: "v2.1: 봉와직염 추가. 열의 원인을 찾을 때 피부·연부조직은 놓치기 쉬운 감염원이다. 피부 진찰로 가른다" },
   },
   {
     id: "p_dyspnea",
@@ -139,26 +145,30 @@ export const PRESENTATIONS = [
     complaint: "의식 변화",
     vignette: "보호자가 오늘따라 대답이 엉뚱하다고 한다.",
     candidates: [
-      { disease: "delirium", weight: 55 },
-      { disease: "he", weight: 45 },
+      { disease: "delirium", weight: 45 },
+      { disease: "he", weight: 35 },
+      { disease: "aki", weight: 20 },
     ],
     burden: [36, 40],
     pressure: "neuro",
     vitals: "vt_calm_confused",
     course: basic("neuro"),
+    medical: { fidelity: "unverified", note: "v2.1: 급성 신손상(요독성 뇌병증) 추가. 병동 환자의 의식 변화에서 대사성 원인(암모니아·요독)은 섬망과 함께 감별한다. 화학 검사로 가른다" },
   },
   {
     id: "p_ward_dyspnea",
     complaint: "숨참",
     vignette: "병동 간호사가 산소포화도가 떨어진다고 호출했다.",
     candidates: [
-      { disease: "chf", weight: 60 },
-      { disease: "cap", weight: 40 },
+      { disease: "chf", weight: 50 },
+      { disease: "cap", weight: 30 },
+      { disease: "pe", weight: 20 },
     ],
     burden: [48, 54],
     pressure: "respiratory",
     vitals: "vt_ward_hypox",
     course: basic("respiratory"),
+    medical: { fidelity: "unverified", note: "v2.1: 폐색전증 추가. 입원 환자의 새 저산소증: 심부전·폐렴·폐색전증은 고전적인 셋이다. 폐가 깨끗한 저산소, 침상 안정력, D-dimer·CT로 가른다" },
   },
   {
     id: "p_diarrhea",
@@ -213,13 +223,15 @@ export const PRESENTATIONS = [
     complaint: "새로 난 열",
     vignette: "중환자실 엿새째, 열이 다시 오른다.",
     candidates: [
-      { disease: "vap", weight: 50 },
-      { disease: "clabsi", weight: 50 },
+      { disease: "vap", weight: 40 },
+      { disease: "clabsi", weight: 40 },
+      { disease: "cdi", weight: 20 },
     ],
     burden: [58, 64],
     pressure: "infection",
     vitals: "vt_icu_fever",
     course: basic("infection"),
+    medical: { fidelity: "unverified", note: "v2.1: C. difficile 감염 추가. 중환자실의 새 열: 인공호흡기 폐렴·카테터 혈류감염·C. diff는 병원 감염의 대표 셋이다. 대변 독소로 가른다" },
   },
   {
     id: "p_oliguria",
@@ -288,4 +300,4 @@ export const PRESENTATIONS = [
     candidates: [{ disease: "septic_shock", weight: 1 }],
     pressure: "hemodynamic",
   },
-] satisfies PresentationDef[];
+];

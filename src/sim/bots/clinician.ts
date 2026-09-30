@@ -61,8 +61,11 @@ function stabilityOf(ops: EffectOp[]): number {
 
 export class ClinicianBot {
   private rng: RngState;
-  constructor(seed: string, _cap = 0) {
+  /** 비교용: 검사를 하지 않고(진단 카드·검사 선택지를 쓰지 않고) 치료만 하는 봇 */
+  private blind: boolean;
+  constructor(seed: string, _cap = 0, opts: { blind?: boolean } = {}) {
     this.rng = deriveStream(`${seed}:sim-clinician`);
+    this.blind = !!opts.blind;
   }
 
   // ───────────── 전투 ─────────────
@@ -89,8 +92,9 @@ export class ClinicianBot {
       const live = v.hypotheses.filter((h) => h.level !== "excluded");
       const second = [...live].sort((a, b) => b.score - a.score)[1];
       const margin = lead.score - (second?.score ?? -99);
-      const urgent = this.threat(state) >= state.run.vitality * 0.35 || c.turn >= 4;
-      const ready = lead.level === "strong" || (lead.level === "suspected" && (margin >= 2 || urgent)) || (urgent && margin >= 2);
+      // 첫 턴에는 강력 의심일 때만 정한다. 둘째 턴부터(또는 위협이 클 때)는 치료를 늦출 수 없으므로 앞선 가설로 정한다
+      const urgent = this.threat(state) >= state.run.vitality * 0.35 || c.turn >= 2;
+      const ready = lead.level === "strong" || (urgent && margin >= 1 && lead.score >= 1);
       if (!ready) continue;
       if (v.workingDx?.diseaseId === lead.diseaseId) continue;
       if (v.workingDx) {
@@ -146,6 +150,7 @@ export class ClinicianBot {
     const stab = stabilityOf(def.effects);
     const stabVal = Math.min(stab, need) * 1.1;
     if (def.kind === "side_effect") return { value: 3 };
+    if (this.blind && def.kind === "diagnostic") return { value: -Infinity };
     const targets = c.enemies.filter((e) => !e.cured);
     let best = { value: -Infinity, target: undefined as string | undefined };
     for (const e of def.target === "enemy" ? targets : [undefined]) {
@@ -205,6 +210,7 @@ export class ClinicianBot {
   private optionValue(state: GameState, o: PendingOption, target: EnemyState | undefined, view: EnemyView | undefined): number {
     const c = state.combat!;
     if (!o.available) return -Infinity;
+    if (this.blind && (o.channel || o.effects.some((e) => e.op === "investigate" || e.op === "investigate_best" || e.op === "culture"))) return -50;
     let v = 0;
     if (o.channel && target) v += channelValue(target, o.channel) * 14 - o.cost * 3;
     // 협진 권고가 손에 쥐여 주는 치료도 처방 선택지처럼 평가

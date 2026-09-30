@@ -28,6 +28,9 @@ export const RESPONSE_FINDING: Record<ResponseClass, FindingId> = {
   worse: "rx_worse",
 };
 
+/** 반대 근거가 이만큼 쌓이면 배제 (v2.1: 4 → 5. 가중치를 2로 묶은 뒤, 반대 소견 둘로 셋 중 둘이 한 턴에 배제되었다) */
+export const EXCLUDE_AT = 5;
+
 export const LEVEL_RANK: Record<HypothesisLevel, number> = { excluded: 0, unlikely: 1, possible: 2, suspected: 3, strong: 4 };
 export const LEVEL_LABEL: Record<HypothesisLevel, string> = {
   excluded: "배제",
@@ -120,6 +123,7 @@ export function actualFinding(enemy: EnemyState, channel: ChannelId): FindingId 
     if (pv) return pv;
   }
   if (enemy.atypical?.channel === channel) return enemy.atypical.finding;
+  if (enemy.atypical2?.channel === channel) return enemy.atypical2.finding;
   return findingFromDef(diseaseDef(enemy.diseaseId), channel, variantDef(enemy)?.id, phaseDef(enemy) ? enemy.phase : 0);
 }
 
@@ -127,17 +131,17 @@ function weightOf(f: FindingId): number {
   return hasFinding(f) ? findingDef(f).weight : 1;
 }
 
-/** 예상 집합과 관찰 소견의 비교. 맞으면 +weight, 어긋나면 −(정상 관찰이면 최대 2, 아니면 큰 weight) */
+/**
+ * 예상 집합과 관찰 소견의 비교. 맞으면 +weight.
+ * 어긋나면 반대 근거: 이상 소견이면 그 소견의 weight, 정상 소견이면 1(기대한 소견이 없다는 것은 약한 근거다).
+ * v2.1: v2.0은 max(기대, 관찰)이라 비특이 소견 하나도 2를 깎았고, 정상 소견도 2를 깎아 감별 대상 셋 중 둘이 검사 두 번에 배제되었다.
+ */
 export function compareFinding(expected: FindingId[], observed: FindingId): { gain: number; penalty: number } {
   if (expected.includes(observed)) return { gain: weightOf(observed), penalty: 0 };
   const wo = weightOf(observed);
-  let pen = Infinity;
-  for (const e of expected) {
-    const we = weightOf(e);
-    const p = wo === 0 ? Math.min(2, we) : Math.max(we, wo);
-    if (p < pen) pen = p;
-  }
-  return { gain: 0, penalty: pen === Infinity ? 0 : pen };
+  if (wo > 0) return { gain: 0, penalty: wo };
+  // 정상 소견: 기대한 특징 소견이 없다 (기대 집합이 모두 정상이면 여기 오지 않는다)
+  return { gain: 0, penalty: expected.some((e) => weightOf(e) > 0) ? 1 : 0 };
 }
 
 // ───────────────────────── 감별 목록 ─────────────────────────
@@ -173,7 +177,7 @@ export function scoreDifferential(enemy: Pick<EnemyState, "hypotheses" | "observ
         againstObs.push(i);
       }
     });
-    return { diseaseId: h, support, against, score: support - against, ruledOut: against >= 4, level: "possible" as HypothesisLevel, forObs, againstObs };
+    return { diseaseId: h, support, against, score: support - against, ruledOut: against >= EXCLUDE_AT, level: "possible" as HypothesisLevel, forObs, againstObs };
   });
   const live = rows.filter((r) => !r.ruledOut);
   for (const r of rows) {
@@ -185,7 +189,7 @@ export function scoreDifferential(enemy: Pick<EnemyState, "hypotheses" | "observ
     const lead = others.length ? r.score - Math.max(...others.map((x) => x.score)) : Infinity;
     if (others.length === 0) r.level = "strong";
     else if (r.score <= -2) r.level = "unlikely";
-    else if (r.score >= 4 && lead >= 3) r.level = "strong";
+    else if (r.score >= 5 && lead >= 3) r.level = "strong";
     else if (r.score >= 2) r.level = "suspected";
     else r.level = "possible";
   }
@@ -246,6 +250,20 @@ export function refreshKnowledge(state: GameState, enemy: EnemyState, silent = f
     state.run.casebook[k.confirmed] = "confirmed";
     state.run.stats.diagnosesConfirmed += 1;
     if (enemy.workingDx !== k.confirmed) {
+      // 이미 정했던 작업 진단이 확진으로 바뀌면(배제되었거나 다른 진단이었으면) 변경으로 센다
+      if (enemy.dxCommitted) {
+        enemy.dxChanges = (enemy.dxChanges ?? 0) + 1;
+        if (enemy.dxChanges === 1) state.run.stats.problemsRevised += 1;
+      } else if (!silent) {
+        // 텔레메트리: 확진으로 처음 작업 진단이 생겼다
+        enemy.dxCommitted = true;
+        if (enemy.hypotheses.length > 1) {
+          const st = state.run.stats;
+          st.firstDx = (st.firstDx ?? 0) + 1;
+          st.firstDxTurnSum = (st.firstDxTurnSum ?? 0) + (c?.turn ?? 0);
+          if (k.confirmed === enemy.diseaseId) st.firstDxCorrect = (st.firstDxCorrect ?? 0) + 1;
+        }
+      }
       enemy.workingDx = k.confirmed;
       enemy.workingDxTurn = c?.turn;
     }
