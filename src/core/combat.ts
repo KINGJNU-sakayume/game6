@@ -2,7 +2,7 @@
 import { cardDef, diseaseDef, encounterDef, presentationDef, relicDef } from "./registry";
 import { planIntents } from "./enemy-ai";
 import { consumeCostModifiers, costOf, drawCards, exhaustInstance, maxCardsPerTurn, removeFromPiles } from "./cards";
-import { deriveStream, pickWeighted, randRange, shuffleInPlace } from "./rng";
+import { deriveStream, pickWeighted, randInt, randRange, shuffleInPlace } from "./rng";
 import { enqueueBack, enqueueFront, phaseOp, runQueue } from "./queue";
 import { observe, scoreDifferential } from "./evidence";
 import { resolveOption } from "./choice";
@@ -10,6 +10,9 @@ import { isTreatmentCard } from "./textbook";
 import { fire } from "./triggers";
 import { emit, findEnemy, hasRelic, livingEnemies, log, modifierValue } from "./util";
 import type { CardInstance, CombatState, EffectCtx, EffectOp, EncounterDef, EnemyState, GameState, Uid } from "./types";
+
+/** 문제 하나에 비전형 소견이 섞일 확률 (%) */
+export const ATYPICAL_PCT = 50;
 
 function createEnemy(state: GameState, problem: EncounterDef["problems"][number], index: number): EnemyState {
   const pres = presentationDef(problem.presentation);
@@ -47,6 +50,12 @@ function createEnemy(state: GameState, problem: EncounterDef["problems"][number]
   };
   if (variantId) e.variantId = variantId;
   if (problem.atkPct && problem.atkPct !== 100) e.atkPct = problem.atkPct;
+  // 비전형 발현: 환자는 교과서대로 오지 않는다. 문제마다 확률적으로 한 소견이 교과서와 다르다
+  const atyp = Object.entries(def.atypical ?? {}).filter((x): x is [string, string] => !!x[1]);
+  if (atyp.length && pres.candidates.length > 1 && randInt(rng, 100) < ATYPICAL_PCT) {
+    const [channel, finding] = atyp[randInt(rng, atyp.length)]!;
+    e.atypical = { channel, finding };
+  }
   return e;
 }
 

@@ -19,7 +19,7 @@ export const ACT3_DISEASES = [
     act: 3,
     severity: [60, 66],
     findings: {
-      vitals: "vt_vent_fever",
+      vitals: "vt_icu_fever",
       hx_onset: "on_days",
       hx_assoc: "as_sputum_purulent",
       hx_risk: "rk_icu_devices",
@@ -31,6 +31,7 @@ export const ACT3_DISEASES = [
       ct: "ct_consolidation",
       cx_sputum: "cx_sputum_pseudo",
     },
+    atypical: { hx_assoc: "as_none", xray: "xr_normal" },
     effectiveness: {},
     variants: [
       { id: "pseudomonas", weight: 60, nameKo: "녹농균", organism: "pseudomonas" },
@@ -68,6 +69,7 @@ export const ACT3_DISEASES = [
       ecg: "ecg_peaked_t",
       pocus: "us_no_obstruction",
     },
+    atypical: { hx_risk: "rk_none", lab_ua: "ua_normal" },
     effectiveness: { dialysis: "key", fluid: "normal", nephrotoxic: "harmful", k_raising: "harmful", loop_diuretic: "immune" },
     definitive: [{ tags: ["dialysis"], text: "투석: 요독과 칼륨이 교정되었다", effects: [clearSelf("aggravation"), { op: "exhaust_cards", from: ["hand", "draw", "discard"], filter: { ids: ["hyperkalemia"] }, amount: "all" }] }],
     moves: [
@@ -90,7 +92,7 @@ export const ACT3_DISEASES = [
     act: 3,
     severity: [64, 70],
     findings: {
-      vitals: "vt_severe_hypox",
+      vitals: "vt_icu_hypox",
       hx_onset: "on_acute",
       hx_risk: "rk_sepsis_source",
       ex_cardio: "cd_diffuse_crackles",
@@ -100,6 +102,7 @@ export const ACT3_DISEASES = [
       pocus: "us_blines_normal_heart",
       ct: "ct_bilateral_consol",
     },
+    atypical: { hx_risk: "rk_none" },
     effectiveness: { airway: "weak", fluid: "harmful", loop_diuretic: "normal", corticosteroid: "normal" },
     definitive: [{ tags: ["airway"], text: "폐 보호 환기: 산소화가 안정되었다", effects: [clearSelf("aggravation")] }],
     moves: [
@@ -152,7 +155,7 @@ export const ACT3_DISEASES = [
     act: 3,
     severity: [58, 64],
     findings: {
-      vitals: "vt_high_fever",
+      vitals: "vt_icu_fever",
       hx_onset: "on_acute",
       hx_assoc: "as_chills_line",
       hx_risk: "rk_icu_devices",
@@ -161,6 +164,7 @@ export const ACT3_DISEASES = [
       cx_blood: "cx_blood_mssa",
       cx_wound: "cx_wound_mssa",
     },
+    atypical: { ex_limb: "lb_normal", hx_assoc: "as_none" },
     effectiveness: { source_control: "key" },
     variants: [
       { id: "mssa", weight: 50, nameKo: "MSSA", organism: "mssa_strep" },
@@ -199,6 +203,7 @@ export const ACT3_DISEASES = [
       pocus: "us_tamponade",
       ct: "ct_pericardial",
     },
+    atypical: { ex_cardio: "cd_tachy_clear", ecg: "ecg_sinus_tachy" },
     effectiveness: { pericardiocentesis: "key", vasopressor: "resistant", beta_blocker: "harmful", airway: "harmful", defib: "immune" },
     definitive: [{ tags: ["pericardiocentesis"], text: "심낭 배액: 심장이 다시 찬다", effects: [cancel, clearSelf("aggravation"), extra(10)] }],
     moves: [
@@ -238,6 +243,7 @@ export const ACT3_DISEASES = [
       pocus: "us_no_sliding",
       ct: "ct_ptx",
     },
+    atypical: { ex_limb: "lb_normal", hx_onset: "on_acute" },
     effectiveness: { chest_tube: "key", airway: "harmful", fluid: "resistant", vasopressor: "resistant" },
     definitive: [{ tags: ["chest_tube"], text: "감압 성공: 흉강 내압이 빠졌다", effects: [cancel, clearSelf("aggravation"), extra(10)] }],
     moves: [

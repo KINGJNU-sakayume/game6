@@ -161,6 +161,8 @@ export type EffectOp =
   | { op: "gain_stability"; amount: ValueExpr; target?: TargetSel }
   | { op: "gain_orders"; amount: ValueExpr }
   | { op: "draw"; amount: ValueExpr }
+  /** 대기 처방에서 조건에 맞는 카드를 위에서부터 amount장 손으로 가져온다 */
+  | { op: "draw_filtered"; filter: CardFilter; amount: number }
   | { op: "exhaust_cards"; from: Pile[]; filter: CardFilter; amount: number | "all" }
   | { op: "add_card"; cardId: CardId; count: number; dest: "hand" | "discard" | "draw_random"; costZeroThisTurn?: boolean; upgraded?: boolean }
   | { op: "apply_status"; status: StatusId; stacks: ValueExpr; target: TargetSel }
@@ -214,6 +216,8 @@ export type EffectOp =
   | { op: "stop_drug_choice" }
   /** 범위 축소: 광범위 항생제 중단. 원인균을 알면 장내세균 교란 정리 */
   | { op: "deescalate" }
+  /** 감수성에 맞춘 항생제: 배양으로 확인한 원인균에 가장 좁고 잘 듣는 항생제를 손에 (병원 처방집 전체에서) */
+  | { op: "targeted_antibiotic"; target?: TargetSel }
   // ── 내부 명령 (콘텐츠에서 쓰지 않음) ──
   | { op: "administer"; cardUid: Uid }
   | { op: "emit_side_effects"; cardUid: Uid }
@@ -470,6 +474,11 @@ export interface DiseaseDef {
   severity: [number, number];
   /** 경로별 소견. 없는 경로는 그 경로의 정상 소견 */
   findings: Partial<Record<ChannelId, FindingId>>;
+  /**
+   * 비전형 소견 후보. 문제마다 일정 확률로 이 중 한 경로가 교과서와 다른 소견을 보인다.
+   * 교과서 예상(채점 기준)에는 들어가지 않으므로 실제 질병에 반대 근거가 될 수 있다(최대 2, 배제되지는 않는다).
+   */
+  atypical?: Partial<Record<ChannelId, FindingId>>;
   organism?: OrganismId;
   effectiveness: Partial<Record<Tag, Grade>>;
   acquiredResistance?: { tags: Tag[]; gainPerHit: number; start?: Partial<Record<Tag, number>> };
@@ -660,6 +669,8 @@ export interface EnemyState {
   workingDxTurn?: number;
   /** 배양으로 원인균이 확인되었는가 */
   organismKnown: boolean;
+  /** 엔진 진실: 이 환자에게서 비전형으로 나타나는 소견 하나 */
+  atypical?: { channel: ChannelId; finding: FindingId };
   severity: number;
   maxSeverity: number;
   stability: number;

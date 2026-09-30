@@ -29,6 +29,7 @@ export const ACT1_DISEASES = [
       ct: "ct_appendicitis",
     },
     organism: "intra_abdominal",
+    atypical: { hx_onset: "on_acute", ex_abd: "ab_diffuse_mild", lab_cbc: "cbc_normal" },
     effectiveness: { source_control: "weak" },
     definitive: [{ tags: ["source_control"], text: "감염원 제거: 천공 위험이 사라졌다", effects: [cancel, clearSelf("inflammation")] }],
     moves: [
@@ -53,7 +54,7 @@ export const ACT1_DISEASES = [
     act: 1,
     severity: [30, 34],
     findings: {
-      vitals: "vt_dry_tachy",
+      vitals: "vt_fever_tachy",
       hx_onset: "on_acute",
       hx_assoc: "as_vomit_diarrhea",
       hx_risk: "rk_sick_contacts",
@@ -66,6 +67,7 @@ export const ACT1_DISEASES = [
       ct: "ct_enteritis",
     },
     organism: "virus",
+    atypical: { hx_risk: "rk_none", hx_assoc: "as_gi_upset" },
     effectiveness: { fluid: "weak" },
     moves: [
       { id: "vomit", nameKo: "구토", effects: [atk(7), toPatient("dehydration", 1)] },
@@ -87,7 +89,7 @@ export const ACT1_DISEASES = [
     act: 1,
     severity: [44, 48],
     findings: {
-      vitals: "vt_fever_hypox",
+      vitals: "vt_fever_tachy",
       hx_onset: "on_days",
       hx_assoc: "as_productive_cough",
       ex_cardio: "cd_crackles_focal",
@@ -98,6 +100,7 @@ export const ACT1_DISEASES = [
       ct: "ct_consolidation",
       cx_sputum: "cx_sputum_pneumo",
     },
+    atypical: { ex_cardio: "cd_normal", hx_assoc: "as_none" },
     effectiveness: {},
     variants: [
       { id: "pneumococcus", weight: 70, nameKo: "폐렴알균", organism: "pneumococcus" },
@@ -111,9 +114,9 @@ export const ACT1_DISEASES = [
     ],
     acquiredResistance: { tags: ["beta_lactam", "carbapenem", "glycopeptide", "aminoglycoside", "fluoroquinolone", "macrolide", "nitroimidazole"], gainPerHit: 1 },
     moves: [
-      { id: "cough", nameKo: "기침", pressure: "respiratory", effects: [atk(10)] },
-      { id: "fever", nameKo: "고열", pressure: "infection", effects: [atk(7), toPatient("weak", 1)] },
-      { id: "inflame", nameKo: "염증 반응", effects: [toSelf("inflammation", 3), atk(4)] },
+      { id: "cough", nameKo: "기침", pressure: "respiratory", effects: [atk(8)] },
+      { id: "fever", nameKo: "고열", pressure: "infection", effects: [atk(6), toPatient("weak", 1)] },
+      { id: "inflame", nameKo: "염증 반응", effects: [toSelf("inflammation", 2), atk(4)] },
     ],
     ai: { weights: { cough: 45, fever: 30, inflame: 25 }, noRepeat: ["inflame"] },
     art: { region: "chest", lesion: [0.34, 0.66, 0.12] },
@@ -130,7 +133,7 @@ export const ACT1_DISEASES = [
     act: 1,
     severity: [38, 42],
     findings: {
-      vitals: "vt_high_fever",
+      vitals: "vt_fever_tachy",
       hx_onset: "on_days",
       hx_assoc: "as_urinary",
       hx_risk: "rk_uti_history",
@@ -141,10 +144,11 @@ export const ACT1_DISEASES = [
       ct: "ct_pyelo",
       cx_urine: "cx_urine_ecoli",
     },
+    atypical: { hx_assoc: "as_gi_upset", ex_abd: "ab_soft" },
     effectiveness: {},
     variants: [
-      { id: "ecoli", weight: 75, nameKo: "대장균", organism: "ecoli" },
-      { id: "esbl", weight: 25, nameKo: "ESBL 생성 대장균", organism: "esbl", findings: { hx_risk: "rk_recent_hosp_abx", cx_urine: "cx_urine_esbl" } },
+      { id: "ecoli", weight: 85, nameKo: "대장균", organism: "ecoli" },
+      { id: "esbl", weight: 15, nameKo: "ESBL 생성 대장균", organism: "esbl", findings: { hx_risk: "rk_recent_hosp_abx", cx_urine: "cx_urine_esbl" } },
     ],
     acquiredResistance: { tags: ["beta_lactam", "carbapenem", "glycopeptide", "aminoglycoside", "fluoroquinolone", "macrolide", "nitroimidazole"], gainPerHit: 1 },
     moves: [
@@ -175,6 +179,7 @@ export const ACT1_DISEASES = [
       abga: "abga_resp_fatigue",
       xray: "xr_hyperinflation",
     },
+    atypical: { hx_risk: "rk_none", abga: "abga_hypoxemia" },
     effectiveness: { beta2_agonist: "weak", corticosteroid: "weak", anaphylaxis_tx: "resistant", beta_blocker: "harmful" },
     definitive: [{ tags: ["beta2_agonist", "corticosteroid"], text: "기관지 확장: 연축이 풀린다", effects: [clearSelf("aggravation")] }],
     moves: [
@@ -206,6 +211,7 @@ export const ACT1_DISEASES = [
       abga: "abga_lactic",
       pocus: "us_flat_ivc",
     },
+    atypical: { hx_onset: "on_acute", hx_risk: "rk_none" },
     effectiveness: { anaphylaxis_tx: "key", corticosteroid: "resistant", beta_blocker: "harmful" },
     definitive: [{ tags: ["anaphylaxis_tx"], text: "에피네프린: 기도 부종이 가라앉는다", effects: [cancel] }],
     moves: [
@@ -230,7 +236,7 @@ export const ACT1_DISEASES = [
     act: 1,
     severity: [66, 72],
     findings: {
-      vitals: "vt_diaphoretic",
+      vitals: "vt_tachy_distress",
       hx_onset: "on_crushing",
       hx_assoc: "as_radiating_sweat",
       hx_risk: "rk_vascular",
@@ -238,6 +244,7 @@ export const ACT1_DISEASES = [
       ecg: "ecg_st_elev",
       pocus: "us_wall_motion",
     },
+    atypical: { hx_assoc: "as_gi_upset", hx_onset: "on_acute" },
     effectiveness: { revascularization: "key", antiplatelet: "weak", anticoagulant: "weak", thrombolytic: "weak", defib: "harmful" },
     definitive: [{ tags: ["revascularization", "thrombolytic"], text: "재관류: 허혈 진행이 멈췄다", effects: [clearSelf("aggravation"), cancel] }],
     moves: [

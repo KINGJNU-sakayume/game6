@@ -19,7 +19,7 @@ export const ACT2_DISEASES = [
     act: 2,
     severity: [48, 54],
     findings: {
-      vitals: "vt_fever_tachy",
+      vitals: "vt_lowgrade",
       hx_onset: "on_days",
       hx_assoc: "as_leg_hot",
       hx_risk: "rk_iv_site",
@@ -29,6 +29,7 @@ export const ACT2_DISEASES = [
       ct: "ct_cellulitis",
       cx_wound: "cx_wound_mssa",
     },
+    atypical: { hx_risk: "rk_none", hx_onset: "on_acute" },
     effectiveness: {},
     variants: [
       { id: "mssa", weight: 60, nameKo: "연쇄알균·MSSA", organism: "mssa_strep" },
@@ -55,6 +56,7 @@ export const ACT2_DISEASES = [
     act: 2,
     severity: [50, 56],
     findings: {
+      vitals: "vt_lowgrade",
       hx_onset: "on_days",
       hx_assoc: "as_leg_ache",
       hx_risk: "rk_immobile_postop",
@@ -63,6 +65,7 @@ export const ACT2_DISEASES = [
       pocus: "us_dvt",
       ct: "ct_venous_clot",
     },
+    atypical: { hx_risk: "rk_none", hx_assoc: "as_none" },
     effectiveness: { anticoagulant: "weak", thrombolytic: "resistant", antiplatelet: "immune" },
     definitive: [{ tags: ["anticoagulant"], text: "항응고: 혈전이 떨어져 나갈 위험을 막았다", effects: [cancel] }],
     moves: [
@@ -100,6 +103,7 @@ export const ACT2_DISEASES = [
       pocus: "us_blines_plump_ivc",
       ct: "ct_pulm_edema",
     },
+    atypical: { hx_risk: "rk_none", hx_onset: "on_days" },
     effectiveness: { loop_diuretic: "weak", fluid: "harmful", beta_blocker: "harmful", vasopressor: "resistant" },
     definitive: [{ tags: ["loop_diuretic"], text: "이뇨: 폐부종이 빠진다", effects: [clearSelf("aggravation")] }],
     moves: [
@@ -133,6 +137,7 @@ export const ACT2_DISEASES = [
       lab_chem: "chem_ammonia_high",
       lab_coag: "coag_prolonged_pt",
     },
+    atypical: { hx_assoc: "as_none", ex_abd: "ab_soft" },
     effectiveness: { ammonia_lowering: "weak", cns_depressant: "harmful" },
     definitive: [{ tags: ["ammonia_lowering"], text: "암모니아가 떨어지며 의식이 맑아진다", effects: [{ op: "exhaust_cards", from: ["hand", "draw", "discard"], filter: { ids: ["confusion"] }, amount: "all" }] }],
     moves: [
@@ -161,6 +166,7 @@ export const ACT2_DISEASES = [
       hx_risk: "rk_elderly_sedative",
       ex_neuro: "nr_inattention",
     },
+    atypical: { hx_onset: "on_acute", hx_assoc: "as_none" },
     effectiveness: { antipsychotic: "weak", benzodiazepine: "harmful" },
     moves: [
       { id: "night_agitation", nameKo: "야간 초조", pressure: "neuro", effects: [atk(6), addCard("confusion", 1, "discard")] },
@@ -194,6 +200,7 @@ export const ACT2_DISEASES = [
       ct: "ct_colitis",
     },
     organism: "cdiff",
+    atypical: { hx_risk: "rk_recent_hosp_abx", lab_cbc: "cbc_leukocytosis" },
     effectiveness: { cdi_risk: "harmful" },
     passives: [{ on: "drug_administered", condition: { eventDrugTag: "cdi_risk" }, effects: [toSelf("aggravation", 2)] }],
     moves: [
@@ -256,7 +263,7 @@ export const ACT2_DISEASES = [
     act: 2,
     severity: [78, 84],
     findings: {
-      vitals: "vt_tachy_hypox",
+      vitals: "vt_tachy_distress",
       hx_onset: "on_sudden",
       hx_assoc: "as_pleuritic",
       hx_risk: "rk_immobile_postop",
@@ -269,6 +276,7 @@ export const ACT2_DISEASES = [
       pocus: "us_rv_dilation",
       ct: "ct_pe",
     },
+    atypical: { hx_assoc: "as_none", ex_limb: "lb_normal" },
     effectiveness: { anticoagulant: "weak", thrombolytic: "weak", fluid: "resistant", antiplatelet: "immune" },
     definitive: [
       { tags: ["thrombolytic"], text: "혈전용해: 우심실 부담이 풀렸다", effects: [clearSelf("aggravation"), { op: "damage", amount: 10, target: "target" }] },

@@ -107,6 +107,8 @@ function opText(op: EffectOp, def: CardDef, extra = false): string {
       return `활력 −${val(op.amount)}`;
     case "draw":
       return `카드 ${val(op.amount)}장 뽑기`;
+    case "draw_filtered":
+      return `대기 처방에서 ${filterName(op.filter)} 카드 ${op.amount}장을 손으로`;
     case "gain_orders": {
       const n = typeof op.amount === "number" ? op.amount : 0;
       return n >= 0 ? `오더 +${val(op.amount)}` : `이번 턴 오더 ${n}`;
@@ -163,6 +165,8 @@ function opText(op: EffectOp, def: CardDef, extra = false): string {
       return `진료과 ${op.count}곳 중 하나를 고르고, 그 과의 권고 중 하나를 따른다`;
     case "stop_drug_choice":
       return "투여 중 약물 하나를 골라 중단하고 카드 1장 뽑기";
+    case "targeted_antibiotic":
+      return "확인된 원인균에 맞는 가장 좁은 항생제를 손에";
     case "deescalate":
       return "범위 축소: 광범위 항생제 중단. 원인균을 알면 장내세균 교란 정리";
     case "end_drug":

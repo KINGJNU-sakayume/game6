@@ -42,6 +42,6 @@ export { resistancePct, GRADE_PCT, PLAN_PCT } from "./damage";
 export { LEVEL_LABEL, LEVEL_RANK, scoreDifferential, channelValue, bestChannels, expectedFindings } from "./evidence";
 export { PRESSURE_LABEL } from "./enemy-ai";
 export { textbook, cardTextbook, textbookSummary, isTreatmentCard, organismsOf } from "./textbook";
-export { formularyItems } from "./choice";
+export { formularyItems, previewDiscover, procedureRisk } from "./choice";
 export * from "./types";
 export { cyrb128 } from "./rng";

@@ -119,8 +119,8 @@ export const STARTER_CARDS = [
     cost: 1,
     target: "enemy",
     tags: [],
-    effects: [dmg(4), stab(3)],
-    upgrade: { effects: [dmg(6), stab(5)] },
+    effects: [dmg(5), stab(3)],
+    upgrade: { effects: [dmg(7), stab(5)] },
     flavor: "원인을 몰라도 환자가 스스로 회복할 시간을 번다.",
   },
   {

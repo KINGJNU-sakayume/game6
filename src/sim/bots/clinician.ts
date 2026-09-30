@@ -11,6 +11,7 @@ import {
   eventDef,
   isPlayable,
   isTreatmentCard,
+  previewDiscover,
   legalActions,
   previewDamage,
   returnCheck,
@@ -88,11 +89,15 @@ export class ClinicianBot {
       const live = v.hypotheses.filter((h) => h.level !== "excluded");
       const second = [...live].sort((a, b) => b.score - a.score)[1];
       const margin = lead.score - (second?.score ?? -99);
-      const urgent = this.threat(state) >= state.run.vitality * 0.35 || c.turn >= 3;
-      const ready = lead.level === "strong" || (lead.level === "suspected" && (margin >= 2 || urgent)) || (urgent && margin >= 1);
+      const urgent = this.threat(state) >= state.run.vitality * 0.35 || c.turn >= 4;
+      const ready = lead.level === "strong" || (lead.level === "suspected" && (margin >= 2 || urgent)) || (urgent && margin >= 2);
       if (!ready) continue;
       if (v.workingDx?.diseaseId === lead.diseaseId) continue;
-      if (v.workingDx && lead.level !== "strong") continue; // 바꾸는 데는 확실한 근거가 필요하다
+      if (v.workingDx) {
+        // 바꾸려면 새 근거가 필요하다: 작업 진단이 흔들리고(가능 이하) 다른 가설이 앞설 때만
+        const wd = v.hypotheses.find((h) => h.isWorkingDx);
+        if (!wd || wd.level === "suspected" || wd.level === "strong" || lead.score - wd.score < 2) continue;
+      }
       if (commitCheck(state, v.uid, lead.diseaseId).ok) return { type: "commit_diagnosis", targetUid: v.uid, diseaseId: lead.diseaseId };
     }
     return null;
@@ -108,7 +113,7 @@ export class ClinicianBot {
     for (const h of pv.byHypothesis ?? []) {
       const p = b.find((x) => x.id === h.diseaseId)?.p ?? 0;
       if (h.grade === "harmful") val -= 15 * p;
-      else if (h.grade === "varies") val += 0.5 * pv.amount * p;
+      else if (h.grade === "varies") val += 0.75 * pv.amount * p;
       else val += (h.amount ?? 0) * p;
     }
     return val;
@@ -129,7 +134,7 @@ export class ClinicianBot {
       }
     };
     walk(def.effects);
-    return best * 14;
+    return best * 20;
   }
 
   private cardValue(state: GameState, uid: string): { value: number; target?: string } {
@@ -152,11 +157,14 @@ export class ClinicianBot {
         const hasTreatment = c.hand.some((h) => h.uid !== uid && isTreatmentCard(cardDef(h.cardId)) && cardDef(h.cardId).kind === (pool === "drug" ? "drug" : "procedure"));
         const lead = leader(view);
         const readiness = view.workingDx ? 1 : lead?.level === "strong" ? 0.8 : lead?.level === "suspected" ? 0.5 : 0.2;
-        v += hasTreatment ? 2 : 22 * readiness + (pool === "procedure" ? -4 : 0);
+        // 처방집에 맞는 치료가 있는가 (플레이어가 아는 처방집·감별 목록으로 계산)
+        const opts = previewDiscover(state, e!.uid, pool);
+        const useful = opts.some((o) => o.cardId && this.optionValue(state, { id: o.id, label: o.label, detail: o.detail, cost: 0, available: true, effects: o.effects, cardId: o.cardId }, e, view) > 4);
+        v += hasTreatment ? 2 : useful ? 22 * readiness : 1;
       } else if (def.effects.some((o) => o.op === "consult") && view) {
         v += view.knowledge >= 2 ? 10 : 16;
       } else if (isTreatmentCard(def) && view) {
-        v += this.treatValue(state, uid, view) + (def.drug?.sideEffects.length ?? 0) * -2;
+        v += this.treatValue(state, uid, view) - (def.drug?.sideEffects.length ?? 0);
       } else if (view) {
         const dmg = firstDamage(def.effects);
         v += dmg;
@@ -185,7 +193,8 @@ export class ClinicianBot {
       const def = cardDef(ci.cardId);
       if (!isTreatmentCard(def) || !returnCheck(state, ci.uid).ok) continue;
       const vals = c.enemies.filter((e) => !e.cured).map((e) => this.treatValue(state, ci.uid, visibleEnemyInfo(state, e.uid)!));
-      if (Math.max(...vals) <= 0.5) return { type: "return_card", cardUid: ci.uid };
+      const support = stabilityOf(def.effects) + (def.effects.some((o) => o.op === "exhaust_cards") ? 3 : 0);
+      if (Math.max(...vals) <= 0.5 && support <= 2) return { type: "return_card", cardUid: ci.uid };
     }
     if (best && best.v > 1.5) return best.a;
     return { type: "end_turn" };
@@ -198,22 +207,31 @@ export class ClinicianBot {
     if (!o.available) return -Infinity;
     let v = 0;
     if (o.channel && target) v += channelValue(target, o.channel) * 14 - o.cost * 3;
-    if (o.cardId && view) {
-      const def = cardDef(o.cardId, o.upgraded);
+    // 협진 권고가 손에 쥐여 주는 치료도 처방 선택지처럼 평가
+    const given = o.cardId ?? o.effects.find((e): e is Extract<EffectOp, { op: "add_card" }> => e.op === "add_card" && isTreatmentCard(cardDef(e.cardId)))?.cardId;
+    if (given && view) {
+      const def = cardDef(given, o.upgraded);
       const b = belief(view);
+      let treat = 0;
       for (const h of b) {
         const tb = cardTextbook(h.id, def);
+        if (tb.generic) continue;
         const g = tb.harmful && tb.classes.length === 1 ? "harmful" : tb.varies ? "varies" : tb.best;
-        v += (GRADE_V[g] ?? 0) * h.p * 12;
+        treat += (GRADE_V[g] ?? 0) * h.p * 12;
       }
+      v += treat;
+      // 이미 투여 중인 약보다 다른 기전·병용을 먼저 (같은 약은 반복해도 지속만 갱신된다)
+      if (c.activeDrugs.some((d) => d.cardId === given)) v -= 4;
+      if (c.hand.some((h) => h.cardId === given)) v -= 3;
+      // 치료가 아닌 약(해열진통제·관리 약)은 안정화·정리 가치로만 본다
+      const need = Math.max(0, this.threat(state) - c.stability);
+      v += Math.min(stabilityOf(def.effects), need) * 0.4;
       if (view.workingDx) {
         const tb = cardTextbook(view.workingDx.diseaseId, def);
         if (!tb.varies && (tb.best === "key" || tb.best === "weak")) v += 6;
       }
       v -= (def.drug?.sideEffects.length ?? 0) * 1.5;
-      if (!isTreatmentCard(def)) {
-        v += /정리/.test(o.detail) ? 6 : 1;
-      }
+      if (/정리/.test(o.detail)) v += 6;
     }
     // 킥커: 여유 오더가 있을 때만
     if (o.cost > 0 && !o.channel) v += c.orders - o.cost >= 1 ? 2 : -6;

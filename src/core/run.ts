@@ -235,10 +235,22 @@ const SLOT_RARITY: Record<RewardState["source"] | "shop", Record<RewardSlot, [Ra
  * - context: 처방집 추가. 이번 막(막 끝이면 다음 막) 환자에게 듣는 것만, 쓸모에 비례해 뽑는다
  * - special: 빌드를 정하는 고급·희귀 카드 (행동 덱 또는 희귀 처방집)
  */
-function pickSlot(state: GameState, source: RewardState["source"] | "shop", slot: RewardSlot, taken: Set<CardId>, rng = state.rng.reward): CardId | undefined {
+function pickSlot(
+  state: GameState,
+  source: RewardState["source"] | "shop",
+  slot: RewardSlot,
+  taken: Set<CardId>,
+  rng = state.rng.reward,
+  forceActs?: (1 | 2 | 3)[],
+  formularyOnly = false,
+): CardId | undefined {
   const run = state.run;
-  const acts: (1 | 2 | 3)[] = [run.act];
-  if (run.act < 3 && (source === "boss" || source === "gate" || run.floor >= actFloors(run.act) - 2)) acts.push((run.act + 1) as 2 | 3);
+  const acts: (1 | 2 | 3)[] = forceActs ? [...forceActs] : [run.act];
+  // 막의 절반을 넘기면 다음 막 환자도 내다본다. 보스·관문 보상은 다음 막만 본다
+  if (forceActs) {
+    /* 정해진 막 */
+  } else if (run.act < 3 && (source === "boss" || source === "gate")) acts.splice(0, 1, (run.act + 1) as 2 | 3);
+  else if (run.act < 3 && run.floor >= Math.ceil(actFloors(run.act) / 2)) acts.push((run.act + 1) as 2 | 3);
   const owned = ownedFormulary(state);
   const all = db().cards.filter((c) => offerable(c.id) && !taken.has(c.id));
   let rarityTable = SLOT_RARITY[source][slot];
@@ -267,6 +279,7 @@ function pickSlot(state: GameState, source: RewardState["source"] | "shop", slot
     }
     return id;
   }
+  if (formularyOnly) return undefined;
   // 처방집을 다 모았거나 칸이 비면 행동 덱 카드로 채운다
   const fallback = all.filter((c) => zoneOf(c.id) === "deck" && c.rarity !== "rare");
   return fallback.length ? pickOne(rng, fallback).id : undefined;
@@ -364,6 +377,18 @@ export function finishCombatVictory(state: GameState): void {
   items.push({ kind: "gold", amount: gold, taken: false });
   const source: RewardState["source"] = kind;
   items.push({ kind: "card", options: generateCardChoices(state, source), taken: false });
+  if ((kind === "boss" || kind === "gate") && state.run.act < 3) {
+    // 다음 병동으로 옮기며 처방집을 신청한다: 다음 막 환자에게 듣는 약·시술 3개 중 1개
+    const taken = new Set<CardId>();
+    const options: RewardCardOption[] = [];
+    for (let i = 0; i < 3; i++) {
+      const id = pickSlot(state, "normal", "context", taken, state.rng.reward, [(state.run.act + 1) as 2 | 3], true);
+      if (!id) break;
+      taken.add(id);
+      options.push({ cardId: id, slot: "context" });
+    }
+    if (options.length) items.push({ kind: "card", options, taken: false });
+  }
   if (kind === "elite") {
     const relic = rollRelic(state, "elite");
     if (relic) items.push({ kind: "relic", relicId: relic, taken: false });

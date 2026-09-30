@@ -102,6 +102,7 @@ function expectedFor(diseaseId: DiseaseId, obs: Observation): FindingId[] {
 
 /** 엔진 진실: 실제 질병(현재 변이·단계)의 소견. 이 값은 관찰되는 즉시 공개된다 */
 export function actualFinding(enemy: EnemyState, channel: ChannelId): FindingId {
+  if (enemy.atypical?.channel === channel) return enemy.atypical.finding;
   return findingFromDef(diseaseDef(enemy.diseaseId), channel, variantDef(enemy)?.id, phaseDef(enemy) ? enemy.phase : 0);
 }
 

@@ -117,7 +117,7 @@ export const PRESENTATIONS = [
       { disease: "delirium", weight: 55 },
       { disease: "he", weight: 45 },
     ],
-    burden: [40, 46],
+    burden: [36, 40],
     pressure: "neuro",
   },
   {

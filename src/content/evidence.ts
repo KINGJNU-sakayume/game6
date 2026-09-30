@@ -37,6 +37,10 @@ export const FINDINGS: FindingDef[] = [
   // ── 활력 징후 ──
   f("vt_stable", "혈압·맥박 안정, 열 없음", 0),
   f("vt_fever_tachy", "38.3℃, 맥박 106", 1),
+  f("vt_lowgrade", "37.6℃, 맥박 92", 1),
+  f("vt_tachy_distress", "맥박 112, 식은땀, SpO₂ 93%", 1),
+  f("vt_icu_fever", "38.9℃, 맥박 118", 1),
+  f("vt_icu_hypox", "38.2℃, 고농도 산소에도 SpO₂ 86%", 1),
   f("vt_high_fever", "39.4℃, 오한, 맥박 116", 1),
   f("vt_dry_tachy", "열 없음, 맥박 112, 입술이 바짝 마름", 1),
   f("vt_fever_hypox", "38.7℃, 호흡수 26, SpO₂ 92%", 1),

@@ -36,9 +36,9 @@ export const CONTENT: ContentDB = {
   events: EVENTS,
   quiz: QUIZ,
   // 행동 덱: 묻고, 보고, 검사하고, 버티고, 처방한다
-  starterDeck: ["history", "physical_exam", "lab_workup", "imaging", "stabilize", "stabilize", "supportive_care", "supportive_care", "med_order", "med_order"],
+  starterDeck: ["history", "physical_exam", "lab_workup", "imaging", "stabilize", "stabilize", "supportive_care", "consult", "med_order", "med_order"],
   // 응급실 처방집: 흔한 응급 약물만. 나머지는 보상·협진·이벤트로 연다
-  starterFormulary: ["saline", "ceftriaxone", "clarithromycin", "metronidazole", "salbutamol", "epinephrine", "insulin", "acetaminophen"],
+  starterFormulary: ["saline", "ceftriaxone", "clarithromycin", "metronidazole", "salbutamol", "epinephrine", "insulin", "aspirin", "heparin", "acetaminophen"],
   starterRelic: "intern_notebook",
   categories: CATEGORIES,
 };

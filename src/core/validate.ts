@@ -294,6 +294,18 @@ export function validateContent(dbx: ContentDB): ValidationResult {
       }
     };
     checkFindings(`질병 ${d.id}`, d.findings);
+    checkFindings(`질병 ${d.id}/비전형`, d.atypical);
+    // 비전형 소견은 실제 질병을 배제할 만큼 강하면 안 된다 (반대 근거 최대 2)
+    const fw = (id: string) => dbx.findings.find((x) => x.id === id)?.weight ?? 0;
+    for (const [ch, fid] of Object.entries(d.atypical ?? {})) {
+      if (!fid) continue;
+      const cdef = dbx.channels.find((x) => x.id === ch);
+      const typicals = [d.findings[ch] ?? cdef?.normal ?? "", ...(d.variants ?? []).map((v) => v.findings?.[ch] ?? d.findings[ch] ?? cdef?.normal ?? "")];
+      if (typicals.includes(fid)) errors.push(`질병 ${d.id}: 비전형 소견 ${fid}이(가) 전형 소견과 같다`);
+      for (const t of typicals) if (Math.max(fw(t), fw(fid)) > 2 && fw(fid) !== 0) errors.push(`질병 ${d.id}: 비전형 ${ch} 소견이 너무 강하다 (반대 근거가 2를 넘는다)`);
+      if (fw(fid) === 0 && typicals.some((t) => fw(t) > 2)) warnings.push(`질병 ${d.id}: 결정적 소견(${ch})이 비전형으로 빠질 수 있다`);
+      if (ch === "vitals" || ch.startsWith("cx_") || ch.startsWith("gs_")) errors.push(`질병 ${d.id}: 비전형 소견은 활력·미생물 경로에 둘 수 없다 (${ch})`);
+    }
     const moveIds = new Set(allMoves(d).map((m) => m.id));
     const ais = [d.ai, ...(d.phases ?? []).map((p) => p.ai).filter((x): x is NonNullable<typeof x> => !!x)];
     for (const ai of ais) {

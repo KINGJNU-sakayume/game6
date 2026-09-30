@@ -1,6 +1,6 @@
 // 효과 큐 처리와 명령 실행기, 턴 흐름 단계. design.md §3.7, D6
-import { cardDef, channelDef, diseaseDef, relicDef, statusDef, tagDef } from "./registry";
-import { findMove, phaseDef } from "./disease";
+import { cardDef, channelDef, db, diseaseDef, relicDef, statusDef, tagDef } from "./registry";
+import { currentOrganism, findMove, phaseDef } from "./disease";
 import { calcEnemyAttack, calcPlayerDamage } from "./damage";
 import { bestChannels, isObserved, observe, observeResponse, pendingChannels } from "./evidence";
 import { consultRecommendDefs, consultSpecialtyDefs, discoverDefs, openChoice, procedureDecisionDefs, procedureRisk, stopDrugDefs } from "./choice";
@@ -295,6 +295,18 @@ function execute(state: GameState, item: QueuedEffect): void {
     case "draw":
       drawCards(state, Math.max(0, evalValue(state, ctx, op.amount)));
       return;
+    case "draw_filtered": {
+      let n = op.amount;
+      for (const ci of [...c.drawPile]) {
+        if (n <= 0) break;
+        if (!matchesFilter(cardDef(ci.cardId), op.filter)) continue;
+        c.drawPile.splice(c.drawPile.indexOf(ci), 1);
+        addCardTo(state, ci, "hand");
+        emit({ type: "card_drawn", uid: ci.uid, cardId: ci.cardId });
+        n -= 1;
+      }
+      return;
+    }
     case "exhaust_cards": {
       let left = op.amount === "all" ? Infinity : op.amount;
       for (const pile of op.from) {
@@ -476,7 +488,7 @@ function execute(state: GameState, item: QueuedEffect): void {
     case "discover": {
       const e = decisionTarget(state, ctx, op.target);
       const defs = discoverDefs(state, e, op.pool, op.count);
-      if (!defs.length) {
+      if (!defs.some((d) => d.cardId)) {
         log(c, "info", op.pool === "drug" ? "처방집에 쓸 만한 약이 없다" : "시술 목록이 비어 있다");
         return;
       }
@@ -538,6 +550,32 @@ function execute(state: GameState, item: QueuedEffect): void {
         return;
       }
       openChoice(state, { op: "choose_option", title: "투약 검토", prompt: "어느 약을 끊을까", options: defs, optional: true }, ctx);
+      return;
+    }
+    case "targeted_antibiotic": {
+      const e = decisionTarget(state, ctx, op.target);
+      const org = e?.organismKnown ? currentOrganism(e) : undefined;
+      if (!e || !org) {
+        log(c, "info", "원인균을 모른다: 배양 결과가 먼저다");
+        return;
+      }
+      const RANK: Record<string, number> = { key: 4, weak: 3, normal: 2, resistant: 1 };
+      let best: { id: string; score: number } | undefined;
+      for (const d of db().cards) {
+        const sp = d.drug?.spectrum;
+        if (!sp) continue;
+        const g = sp[org];
+        const r = g ? RANK[g] ?? 0 : 0;
+        if (r < 2) continue;
+        const score = r * 10 - (d.tags.includes("broad_spectrum") ? 5 : 0) - (d.tags.includes("nephrotoxic") ? 1 : 0);
+        if (!best || score > best.score) best = { id: d.id, score };
+      }
+      if (!best) {
+        log(c, "warn", "이 원인균에 듣는 항생제가 병원에 없다");
+        return;
+      }
+      addGeneratedCard(state, best.id, "hand");
+      log(c, "diag", `감수성 결과에 맞춰 ${cardDef(best.id).nameKo} 처방`);
       return;
     }
     case "deescalate": {

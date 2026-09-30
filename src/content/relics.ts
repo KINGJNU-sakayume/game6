@@ -9,8 +9,8 @@ export const RELICS = [
     nameEn: "Intern's notebook",
     badge: "수첩",
     tier: "starter",
-    triggers: [{ on: "combat_start", effects: [{ op: "investigate_best", groups: ["history"], count: 1, target: "target" }] }],
-    description: "전투가 시작될 때 첫 번째 문제에서 가장 감별력 있는 병력 1개를 얻는다.",
+    triggers: [{ on: "combat_start", effects: [{ op: "draw_filtered", filter: { kind: ["diagnostic"] }, amount: 1 }] }],
+    description: "전투가 시작될 때 대기 처방에서 진단 카드 1장을 손으로 가져온다.",
     flavor: "모서리가 닳은 포켓 수첩. 선배가 적어 준 감별 목록이 있다.",
   },
   {

@@ -313,7 +313,7 @@ export function discoverDefs(state: GameState, enemy: EnemyState | undefined, po
   while (chosen.length < Math.min(2, count) && pick((x) => x.manage + Math.max(0, ...x.vals, 0) + (x.treat ? 0 : 1))) {
     /* 계속 */
   }
-  return chosen.map((x) => {
+  const out = chosen.map((x) => {
     const { detail, risk } = perHypothesisText(state, enemy, x.def);
     const r = [...risk, ...hazardText(state, x.def)];
     const se = sideEffectText(x.def);
@@ -331,6 +331,24 @@ export function discoverDefs(state: GameState, enemy: EnemyState | undefined, po
     if (r.length) o.risk = r.join(" · ");
     return o;
   });
+  // 맞는 치료가 하나뿐이거나 없으면 "처방하지 않음"도 판단이다: 오더를 돌려받고 카드 1장
+  if (out.length < 2) {
+    out.push({
+      id: "none",
+      label: "처방하지 않음",
+      detail: "처방집에 이 환자에게 맞는 것이 없다고 판단한다. 오더 1을 돌려받고 카드 1장",
+      effects: [{ op: "gain_orders", amount: 1 }, { op: "draw", amount: 1 }],
+    });
+  }
+  return out;
+}
+
+/** 봇·도움말용: 지금 발견을 열면 나올 선택지 (플레이어 정보로 계산) */
+export function previewDiscover(state: GameState, targetUid: string | undefined, pool: "drug" | "procedure"): OptionDef[] {
+  const c = state.combat;
+  if (!c) return [];
+  const e = findEnemy(c, targetUid) ?? livingEnemies(c)[0];
+  return discoverDefs(state, e && !e.cured ? e : undefined, pool, 3);
 }
 
 // ───────────────────────── 협진 ─────────────────────────
@@ -343,8 +361,10 @@ export function consultSpecialtyDefs(state: GameState, enemy: EnemyState | undef
     const names: string[] = [];
     for (const h of live) {
       const def = diseaseDef(h.diseaseId);
-      if (cd.categories.includes(def.category) || (cd.traits ?? []).some((t) => allTraits(def).includes(t))) {
-        s += h.weight;
+      // 특성이 맞으면(그 과가 직접 다루는 문제) 범주만 맞는 것보다 두 배로 친다
+      const m = (cd.categories.includes(def.category) ? 1 : 0) + ((cd.traits ?? []).some((t) => allTraits(def).includes(t)) ? 2 : 0);
+      if (m > 0) {
+        s += h.weight * m;
         names.push(def.nameKo);
       }
     }
