@@ -1,5 +1,5 @@
 // 합법 행동 목록. 봇과 UI 활성화에 공용.
-import { cardDef } from "./registry";
+import { cardDef, eventDef } from "./registry";
 import { canPlay } from "./combat";
 import { availableNodes } from "./run";
 import type { Action, GameState } from "./types";
@@ -65,8 +65,11 @@ export function legalActions(state: GameState): Action[] {
       }
       if (ev.quiz) ev.quiz.order.forEach((_, i) => out.push({ type: "event_choose", optionId: `q${i}` }));
       else {
-        // 이벤트 선택지는 UI가 정의에서 읽는다. 봇을 위해 a/b를 넣는다.
-        out.push({ type: "event_choose", optionId: "a" }, { type: "event_choose", optionId: "b" });
+        // 조건(예산)을 채우지 못한 선택지는 합법 행동이 아니다. step의 검사와 같은 기준이다.
+        for (const o of eventDef(ev.eventId).options) {
+          if (o.requires?.goldAtLeast !== undefined && state.run.gold < o.requires.goldAtLeast) continue;
+          out.push({ type: "event_choose", optionId: o.id });
+        }
       }
       return out;
     }
