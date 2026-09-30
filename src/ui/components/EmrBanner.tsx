@@ -17,12 +17,14 @@ export function EmrBanner({
   state,
   pulseRelic,
   onDeck,
+  onFormulary,
   onCasebook,
   onSettings,
 }: {
   state: GameState;
   pulseRelic?: Set<string>;
   onDeck: () => void;
+  onFormulary: () => void;
   onCasebook: () => void;
   onSettings: () => void;
 }) {
@@ -74,6 +76,9 @@ export function EmrBanner({
       <nav className="emr-actions">
         <button className="emr-btn" onClick={onDeck} title="처방 목록 (D)">
           처방 목록 <span className="mono">{r.deck.length}</span>
+        </button>
+        <button className="emr-btn" onClick={onFormulary} title="처방집: 투약 오더로 불러내는 약과 시술">
+          처방집 <span className="mono">{r.formulary.length}</span>
         </button>
         <button className="emr-btn" onClick={onCasebook} title="증례집">
           증례집 <span className="mono">{Object.keys(r.casebook).length}</span>
