@@ -371,6 +371,8 @@ export function CombatScreen({ state, fx, settings }: { state: GameState; fx: Fx
               data-uid={ci.uid}
               className={`hand-slot ${isHover ? "is-hover" : ""} ${isSel ? "is-sel" : ""} ${isDragging ? "is-dragging" : ""}`}
               style={{ transform, zIndex: isHover || isSel ? 40 : 10 + i, animationDelay: `${i * 45}ms` }}
+              onMouseEnter={() => setHoverCard(ci.uid)}
+              onMouseLeave={() => setHoverCard((h) => (h === ci.uid ? null : h))}
             >
               <Card
                 cardId={ci.cardId}
@@ -380,8 +382,6 @@ export function CombatScreen({ state, fx, settings }: { state: GameState; fx: Fx
                 selected={isSel}
                 temp={ci.temp}
                 tabIndex={0}
-                onMouseEnter={() => setHoverCard(ci.uid)}
-                onMouseLeave={() => setHoverCard((h) => (h === ci.uid ? null : h))}
                 onClick={() => onCardClick(ci.uid)}
                 onPointerDown={(e) => {
                   if (e.button !== 0 || !playable) return;

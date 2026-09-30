@@ -31,6 +31,25 @@ async function waitPlayed(page: Page, handBefore: number): Promise<boolean> {
   return false;
 }
 
+/** 손패 카드의 아래쪽 가장자리에 커서를 두어도 확대 상태가 흔들리지 않아야 한다 (회귀 검사) */
+async function checkHoverStable(page: Page): Promise<string | null> {
+  const slot = page.locator(".hand-slot").nth(1);
+  if (!(await slot.count())) return null;
+  const box = await slot.boundingBox();
+  if (!box) return null;
+  const y = Math.min(box.y + box.height - 10, 712);
+  await page.mouse.move(box.x + box.width / 2, y);
+  await page.waitForTimeout(400);
+  const samples: boolean[] = [];
+  for (let i = 0; i < 10; i++) {
+    samples.push(((await slot.getAttribute("class")) ?? "").includes("is-hover"));
+    await page.waitForTimeout(40);
+  }
+  await page.mouse.move(640, 300);
+  await page.waitForTimeout(200);
+  return samples.every(Boolean) ? null : `손패 카드 아래쪽에 커서를 두면 확대가 오르내린다 (${samples.map((b) => (b ? 1 : 0)).join("")})`;
+}
+
 async function main() {
   const browser = await launchBrowser();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
@@ -72,6 +91,11 @@ async function main() {
       continue;
     }
     if (ph === "combat") {
+      if (seen.combat === 1) {
+        await page.waitForTimeout(500); // 손패가 들어오는 연출이 끝난 뒤
+        const hover = await checkHoverStable(page);
+        if (hover) errors.push(hover);
+      }
       // 쓸 수 있는 카드를 하나 쓰고, 없으면 턴 종료
       const cards = page.locator(".hand-slot .card:not(.is-dim)");
       const n = await cards.count();

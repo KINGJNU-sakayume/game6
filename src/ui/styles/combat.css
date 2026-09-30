@@ -1075,6 +1075,16 @@
 .hand-slot .card {
   touch-action: none;
 }
+/* 커서를 올리면 카드가 위로 올라간다. 올라간 동안에도 원래 자리를 인식 영역으로 남겨
+   카드 아래쪽을 가리킨 커서가 카드 밖으로 밀려나 오르내림을 반복하지 않게 한다. */
+.hand-slot.is-hover::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 120px;
+}
 .hand-slot.is-hover .card,
 .hand-slot.is-sel .card {
   box-shadow: var(--shadow-lift);
