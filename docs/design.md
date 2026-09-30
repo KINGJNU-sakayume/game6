@@ -1459,6 +1459,8 @@ npx tsx scripts/ui-smoke.ts             # 실제 클릭으로 한 판 진행하�
 npx tsx scripts/gen-disease-table.ts    # §5.5 구현 기준 수치 표
 ```
 
+**GitHub Actions** (`.github/workflows/ci.yml`): 푸시·PR마다 타입 검사, 테스트, 긴 퍼즈, 두 가지 빌드, 브라우저 클릭 검사, 화면 스크린숏을 돌린다. 기본 브랜치에서 모두 통과하고 Pages 소스가 "GitHub Actions"로 켜져 있으면 웹 빌드를 GitHub Pages에 배포한다. 웹 빌드는 `base: "./"`라 저장소 하위 경로에서도 자원을 찾는다.
+
 ---
 
 ## 8. 마일스톤

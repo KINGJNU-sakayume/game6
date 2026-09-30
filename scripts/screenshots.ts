@@ -1,8 +1,8 @@
 // 화면별 스크린숏. 탐욕 봇으로 각 단계의 상태를 만든 뒤 개발 서버에 주입해 찍는다.
 // 사용: npx vite --port 5173 & npm run shots -- [--url http://localhost:5173] [--only combat,map]
-import { mkdirSync } from "node:fs";
-import { chromium } from "playwright-core";
+import { appendFileSync, mkdirSync } from "node:fs";
 import type { Page } from "playwright-core";
+import { launchBrowser, serveReactLocally } from "./browser";
 import { CONTENT } from "../src/content";
 import { installContent, newRun, step } from "../src/core";
 import type { GameState } from "../src/core";
@@ -59,47 +59,45 @@ function collect(): Partial<Record<Key, GameState>> {
   return got;
 }
 
+const errors: string[] = [];
+const taken: string[] = [];
+
 async function shoot(page: Page, name: string) {
   // 한글 글꼴은 글자 범위별로 늦게 받아지므로 두 번 기다린다
   await page.waitForTimeout(500);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${OUT}/${name}.png` });
+  taken.push(name);
   console.log("shot", name);
 }
 
 async function main() {
   const states = collect();
   console.log("captured:", Object.keys(states).join(", "));
-  const browser = await chromium.launch({
-    executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-    proxy: process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "localhost,127.0.0.1" } : undefined,
-  });
+  const browser = await launchBrowser();
   const open = async (state: GameState | null, viewport = { width: 1280, height: 720 }) => {
     const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1 });
     if (state) await ctx.addInitScript((data) => {
       (window as unknown as { claude: unknown }).claude = { hot: { data } };
     }, { state, log: [] });
-    // 테스트 환경에서는 CDN이 막혀 있어 같은 버전의 로컬 UMD 파일을 대신 준다
-    await ctx.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net/, (route) => {
-      const url = route.request().url();
-      const lib = url.includes("react-dom") ? "react-dom" : "react";
-      return route.fulfill({ path: `node_modules/${lib}/umd/${url.split("/").pop()}`, contentType: "application/javascript" });
-    });
-    // 브라우저는 프록시 CA를 모르므로 글꼴은 Node 쪽에서 받아 넘긴다 (NODE_EXTRA_CA_CERTS로 검증된다)
-    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, async (route) => {
-      try {
-        const resp = await route.fetch();
-        await route.fulfill({ response: resp });
-      } catch (e) {
-        console.error("font fetch failed:", (e as Error).message);
-        await route.abort();
-      }
-    });
+    await serveReactLocally(ctx);
+    // 프록시 뒤(이 작업 환경)에서는 브라우저가 프록시 인증서를 몰라 글꼴을 Node 쪽에서 받아 넘긴다
+    if (process.env.HTTPS_PROXY) {
+      await ctx.route(/fonts\.(googleapis|gstatic)\.com/, async (route) => {
+        try {
+          await route.fulfill({ response: await route.fetch() });
+        } catch (e) {
+          console.error("font fetch failed:", (e as Error).message);
+          await route.abort();
+        }
+      });
+    }
     const page = await ctx.newPage();
-    page.on("pageerror", (e) => console.error("pageerror:", e.message));
+    page.on("pageerror", (e) => errors.push(`pageerror (${state?.phase ?? "title"}): ${e.message}`));
     page.on("console", (m) => {
-      if (m.type() === "error") console.error("console:", m.text());
+      // 글꼴 같은 외부 자원 실패는 화면 오류로 치지 않는다
+      if (m.type() === "error" && !/Failed to load resource|net::ERR_/.test(m.text())) errors.push(`console (${state?.phase ?? "title"}): ${m.text()}`);
     });
     await page.goto(URL);
     await page.waitForLoadState("networkidle").catch(() => undefined);
@@ -184,6 +182,13 @@ async function main() {
     await l.ctx.close();
   }
   await browser.close();
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### 화면 스크린숏\n\n${taken.length}장: ${taken.join(", ")}\n\n오류 ${errors.length}건\n\n`);
+  }
+  if (errors.length) {
+    console.error(errors.join("\n"));
+    process.exit(1);
+  }
 }
 
 main().catch((e) => {

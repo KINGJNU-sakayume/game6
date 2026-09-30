@@ -1,0 +1,137 @@
+# 검사 → 브라우저 검사 → (기본 브랜치이고 Pages가 켜져 있으면) GitHub Pages 배포
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: 타입 검사 · 테스트 · 빌드
+    # 같은 저장소 브랜치의 PR은 push 때 이미 검사했으므로, 포크에서 온 PR만 다시 검사한다
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: 타입 검사
+        run: npm run typecheck
+      - name: 테스트
+        run: npm test
+      - name: 긴 퍼즈 (무작위 봇 200판)
+        run: npm run test:fuzz
+      - name: 웹 빌드 (GitHub Pages용)
+        run: npx vite build
+      - name: 아티팩트용 단일 HTML
+        run: npm run build:artifact
+      - uses: actions/upload-artifact@v4
+        with:
+          name: order-set-html
+          path: |
+            dist-artifact/order-set.html
+            dist-artifact/preview.html
+          retention-days: 14
+
+  browser:
+    name: 브라우저 검사 (클릭 연기 검사 · 스크린숏)
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: 웹 빌드와 미리보기 서버
+        run: |
+          npx vite build
+          npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:4173/ > /dev/null && exit 0; sleep 1; done
+          cat preview.log
+          exit 1
+      - name: 클릭 연기 검사 (웹 빌드)
+        run: npx tsx scripts/ui-smoke.ts --url http://localhost:4173/ --steps 400
+      - name: 화면별 스크린숏
+        run: npx tsx scripts/screenshots.ts --url http://localhost:4173/
+      - name: 클릭 연기 검사 (아티팩트용 단일 HTML)
+        run: |
+          npm run build:artifact
+          python3 -m http.server 5190 --directory dist-artifact > http.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:5190/preview.html > /dev/null && break; sleep 1; done
+          npx tsx scripts/ui-smoke.ts --url http://localhost:5190/preview.html --steps 300 --out shots/smoke-artifact
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: shots/
+          retention-days: 14
+
+  pages-check:
+    name: GitHub Pages 설정 확인
+    if: github.event_name != 'pull_request' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    permissions:
+      pages: read
+    outputs:
+      enabled: ${{ steps.pages.outputs.enabled }}
+    steps:
+      - id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          build_type=$(gh api "repos/${{ github.repository }}/pages" --jq .build_type 2>/dev/null || true)
+          if [ "$build_type" = "workflow" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=GitHub Pages 배포 건너뜀::Settings → Pages → Build and deployment → Source를 'GitHub Actions'로 바꾸면 다음 실행부터 배포된다."
+            {
+              echo "### GitHub Pages 배포를 건너뛰었다"
+              echo
+              echo "저장소 Settings → Pages → Build and deployment → Source를 **GitHub Actions**로 바꾼 뒤,"
+              echo "Actions 탭에서 이 워크플로를 다시 실행(Run workflow)하거나 새로 푸시하면 배포된다."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  deploy:
+    name: GitHub Pages 배포
+    needs: [check, browser, pages-check]
+    if: needs.pages-check.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx vite build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

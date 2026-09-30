@@ -19,3 +19,7 @@
 - **배포 페이지의 React는 cdnjs, 실패하면 jsdelivr.** design §3.11은 cdnjs만 적었다. 한 곳이 막혀도 판이 열리도록 같은 버전 파일을 대체 경로로 둔다. 둘 다 막히면 안내 문구를 띄운다.
 - **디버그 패널은 만들지 않았다.** 대신 `scripts/screenshots.ts`가 탐욕 봇으로 각 단계(전투, 보상, 상점, 당직실, 이벤트, 보스 유물, 종료)의 상태를 만들어 `window.claude.hot.data`로 주입하고, `scripts/ui-smoke.ts`가 실제 클릭으로 한 판을 진행한다. 아티팩트에서는 쿼리 문자열이 전달되지 않아 `?debug=1`을 쓸 수도 없다.
 - **브라우저 검사 스크립트는 테스트 묶음 밖에 둔다.** 개발 서버와 Chromium이 필요해서다. 이 작업 환경에서는 CDN이 막혀 있어 검사 중 React UMD를 `node_modules`의 같은 버전 파일로 대신 주고, 글꼴은 Node 쪽에서 받아 넘긴다(브라우저가 프록시 인증서를 모른다).
+- **CI는 워크플로 하나(`ci.yml`)로 검사 → 브라우저 검사 → Pages 배포를 잇는다.** 배포는 기본 브랜치에서 모든 검사가 통과했을 때만 한다. Pages가 꺼져 있으면 실패 대신 안내를 남기고 건너뛴다. 저장소를 처음 만든 브랜치가 기본 브랜치라 브랜치 이름을 적지 않고 `github.event.repository.default_branch`와 비교한다.
+- **브라우저 검사 스크립트는 실행기를 고른다** (`scripts/browser.ts`): `CHROME_PATH` → 이 작업 환경의 Playwright Chromium → 러너에 설치된 Google Chrome. 브라우저를 따로 내려받지 않는다.
+- **긴 퍼즈를 CI에 넣었다.** 무작위 봇 200판이 약 20초라 매번 돌린다. 넣자마자 `legalActions`가 예산이 모자란 돌발 상황 선택지를 합법으로 내놓던 버그(시드 fz-58)를 찾았다. 고치고 회귀 테스트를 더했다(`tests/unit/legal.test.ts`).
+- **웹 빌드는 상대 경로(`base: "./"`).** GitHub Pages는 `https://<사용자>.github.io/<저장소>/` 하위 경로에 올라가기 때문이다.

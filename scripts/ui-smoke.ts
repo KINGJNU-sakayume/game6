@@ -1,8 +1,9 @@
-// 실제 클릭으로 한 판을 진행해 보는 연기 검사. 오류가 나면 실패한다.
-// 사용: npx vite --port 5173 & npx tsx scripts/ui-smoke.ts [--steps 400] [--shots]
-import { mkdirSync } from "node:fs";
-import { chromium } from "playwright-core";
+// 실제 클릭으로 한 판을 진행해 보는 연기 검사.
+// 실패 조건: 페이지 오류·콘솔 오류, 또는 전투에서 한 번도 이기지 못함(보상 화면에 닿지 못함).
+// 사용: npx vite --port 5173 & npx tsx scripts/ui-smoke.ts [--url URL] [--steps 400] [--shots]
+import { appendFileSync, mkdirSync } from "node:fs";
 import type { Page } from "playwright-core";
+import { launchBrowser, serveReactLocally } from "./browser";
 
 function arg(name: string, def: string): string {
   const i = process.argv.indexOf(`--${name}`);
@@ -11,26 +12,30 @@ function arg(name: string, def: string): string {
 const URL = arg("url", "http://localhost:5173");
 const STEPS = Number(arg("steps", "400"));
 const SHOTS = process.argv.includes("--shots");
-mkdirSync("shots/smoke", { recursive: true });
+const OUT = arg("out", "shots/smoke");
+mkdirSync(OUT, { recursive: true });
 
 async function phase(page: Page): Promise<string> {
   const cls = (await page.locator("main.screen").getAttribute("class")) ?? "";
   return cls.replace(/.*screen-/, "").trim();
 }
 
+/** 카드를 쓴 뒤 화면이 바뀔 때까지 잠깐 기다린다 (느린 CI 러너 대비) */
+async function waitPlayed(page: Page, handBefore: number): Promise<boolean> {
+  for (let t = 0; t < 12; t++) {
+    await page.waitForTimeout(25);
+    if ((await phase(page)) !== "combat") return true;
+    if ((await page.locator(".ov-sheet[role=dialog]").count()) > 0) return true;
+    if ((await page.locator(".hand-slot").count()) !== handBefore) return true;
+  }
+  return false;
+}
+
 async function main() {
-  const browser = await chromium.launch({
-    executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-    proxy: process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: "localhost,127.0.0.1" } : undefined,
-  });
+  const browser = await launchBrowser();
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-  // 테스트 환경에서는 CDN이 막혀 있어 같은 버전의 로컬 UMD 파일을 대신 준다
-  await ctx.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net/, (route) => {
-    const url = route.request().url();
-    const lib = url.includes("react-dom") ? "react-dom" : "react";
-    return route.fulfill({ path: `node_modules/${lib}/umd/${url.split("/").pop()}`, contentType: "application/javascript" });
-  });
+  await serveReactLocally(ctx);
 
   const page = await ctx.newPage();
   const errors: string[] = [];
@@ -41,7 +46,7 @@ async function main() {
   await page.goto(URL);
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  await page.fill(".field-input", "SMOKE-0001");
+  await page.fill("#seed", "SMOKE-0001");
   await page.click("button[type=submit]");
 
   const seen: Record<string, number> = {};
@@ -49,7 +54,7 @@ async function main() {
   for (let i = 0; i < STEPS; i++) {
     const ph = await phase(page);
     seen[ph] = (seen[ph] ?? 0) + 1;
-    if (SHOTS && seen[ph] === 1) await page.screenshot({ path: `shots/smoke/${String(shot++).padStart(2, "0")}-${ph}.png` });
+    if (SHOTS && seen[ph] === 1) await page.screenshot({ path: `${OUT}/${String(shot++).padStart(2, "0")}-${ph}.png` });
     if (errors.length) break;
 
     // 대기 선택 창이 떠 있으면 먼저 처리
@@ -63,8 +68,7 @@ async function main() {
     }
     if (ph === "title") break;
     if (ph === "map") {
-      const node = page.locator(".map-node.is-avail, .map-boss.is-avail").first();
-      await node.click();
+      await page.locator(".map-node.is-avail, .map-boss.is-avail").first().click();
       continue;
     }
     if (ph === "combat") {
@@ -74,17 +78,14 @@ async function main() {
       let played = false;
       for (let k = 0; k < n && !played; k++) {
         const before = await page.locator(".hand-slot").count();
-        const card = cards.nth(k);
-        await card.click();
-        // 대상이 필요한 카드는 질병을 누른다
+        await cards.nth(k).click();
+        // 대상이 필요한 카드는 질병을 누르고, 아니면 한 번 더 눌러 쓴다
         if (await page.locator(".disease.is-targetable").count()) {
           await page.locator(".disease.is-targetable .lightbox").first().click();
         } else if (await page.locator(".hand-slot.is-sel").count()) {
           await page.locator(".hand-slot.is-sel .card").click();
         }
-        await page.waitForTimeout(30);
-        const after = await page.locator(".hand-slot").count().catch(() => before);
-        played = after !== before || (await phase(page)) !== "combat" || (await page.locator(".ov-sheet[role=dialog]").count()) > 0;
+        played = await waitPlayed(page, before);
         if (!played) await page.keyboard.press("Escape");
       }
       if (!played && (await phase(page)) === "combat") await page.click(".end-turn");
@@ -124,10 +125,22 @@ async function main() {
     if (ph === "gameover" || ph === "victory") break;
   }
   const final = await phase(page);
-  console.log("phases seen:", JSON.stringify(seen));
-  console.log("final:", final);
-  await page.screenshot({ path: "shots/smoke/final.png" });
+  await page.screenshot({ path: `${OUT}/final.png` });
   await browser.close();
+
+  if (!seen.combat) errors.push("전투 화면에 닿지 못했다");
+  else if (!seen.reward) errors.push("전투에서 한 번도 이기지 못했다(보상 화면에 닿지 못함)");
+
+  const report = `phases seen: ${JSON.stringify(seen)}\nfinal: ${final}`;
+  console.log(report);
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    appendFileSync(
+      process.env.GITHUB_STEP_SUMMARY,
+      `### 클릭 연기 검사 (${URL})\n\n| 화면 | 방문 |\n|---|---|\n${Object.entries(seen)
+        .map(([k, v]) => `| ${k} | ${v} |`)
+        .join("\n")}\n\n마지막 화면: \`${final}\` · 오류 ${errors.length}건\n\n`,
+    );
+  }
   if (errors.length) {
     console.error(errors.join("\n"));
     process.exit(1);

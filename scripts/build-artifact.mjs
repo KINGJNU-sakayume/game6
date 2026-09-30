@@ -48,3 +48,18 @@ ${js}
 const out = `${dir}/order-set.html`;
 writeFileSync(out, html);
 console.log(`${out} ${(statSync(out).size / 1024).toFixed(0)} KB`);
+
+// 검사용: 아티팩트 호스트가 씌우는 뼈대(문자 집합·뷰포트·작은 초기화)를 흉내 낸 페이지. 게시하지 않는다.
+const preview = `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif;background:#fafaf7}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+${html}</body>
+</html>
+`;
+writeFileSync(`${dir}/preview.html`, preview);
+console.log(`${dir}/preview.html (검사용)`);
