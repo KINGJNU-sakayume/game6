@@ -1003,6 +1003,74 @@
   transition: transform 0.14s ease;
   transform-origin: 50% 100%;
   cursor: pointer;
+  animation: deal 0.3s ease-out backwards;
+}
+/* 대기 더미에서 손으로 */
+@keyframes deal {
+  from {
+    transform: translate(150px, 660px) scale(0.3) rotate(-14deg);
+    opacity: 0;
+  }
+}
+.anim-off .hand-slot {
+  animation: none;
+}
+/* 쓴 카드가 더미로 날아간다 */
+.fly-card {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 45;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+  animation: fly-discard 0.5s cubic-bezier(0.45, 0, 0.7, 0.4) forwards;
+}
+@keyframes fly-discard {
+  0% {
+    transform: translate(var(--fx), var(--fy)) scale(1);
+    opacity: 1;
+  }
+  28% {
+    transform: translate(calc(var(--fx) + 30px), calc(var(--fy) - 70px)) scale(0.92) rotate(4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(1128px, 628px) scale(0.22) rotate(24deg);
+    opacity: 0.3;
+  }
+}
+.fly-card.to-exhaust {
+  animation-name: fly-exhaust;
+}
+@keyframes fly-exhaust {
+  0% {
+    transform: translate(var(--fx), var(--fy)) scale(1);
+    opacity: 1;
+    filter: none;
+  }
+  45% {
+    transform: translate(var(--fx), calc(var(--fy) - 80px)) scale(0.95);
+    opacity: 0.9;
+    filter: sepia(0.8) brightness(0.9);
+  }
+  100% {
+    transform: translate(var(--fx), calc(var(--fy) - 120px)) scale(0.8) rotate(-6deg);
+    opacity: 0;
+    filter: sepia(1) brightness(0.4) blur(2px);
+  }
+}
+.fly-card.to-power {
+  animation-name: fly-power;
+}
+@keyframes fly-power {
+  0% {
+    transform: translate(var(--fx), var(--fy)) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(90px, 200px) scale(0.3);
+    opacity: 0;
+  }
 }
 .hand-slot .card {
   touch-action: none;
@@ -1318,6 +1386,7 @@
   position: absolute;
   left: 50%;
   top: 44%;
+  transform: translate(-50%, -50%) rotate(-8deg);
   font-family: var(--f-stamp);
   font-size: 40px;
   color: var(--kind-diagnostic);
@@ -1352,4 +1421,61 @@
     opacity: 0;
     transform: translate(-50%, -50%) rotate(-8deg) scale(1);
   }
+}
+
+/* 인턴 수첩 메모 (첫 전투) */
+.coach {
+  position: absolute;
+  left: 340px;
+  top: 96px;
+  width: 236px;
+  padding: 12px 14px 12px 16px;
+  background: #fdf1a0;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.2), inset 0 -24px 30px rgba(0, 0, 0, 0.03);
+  transform: rotate(-2deg);
+  z-index: 6;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.coach::before {
+  content: "";
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  width: 70px;
+  height: 18px;
+  margin-left: -35px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  transform: rotate(3deg);
+}
+.coach-title {
+  font-size: 26px;
+  line-height: 1;
+  margin-bottom: 4px;
+  color: var(--ink);
+}
+.coach-list {
+  margin: 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.coach-x {
+  position: absolute;
+  right: 6px;
+  top: 4px;
+  appearance: none;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.coach-x:hover {
+  color: var(--ink);
 }

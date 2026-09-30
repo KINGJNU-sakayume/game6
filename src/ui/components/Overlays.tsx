@@ -5,6 +5,7 @@ import type { CardInstance, GameState } from "../../core";
 import { controller } from "../controller";
 import type { Snapshot } from "../controller";
 import { Card } from "./Card";
+import { CopyRunButton } from "./CopyRun";
 
 function Sheet({ title, sub, onClose, children, wide, footer }: { title: string; sub?: string; onClose?: () => void; children: React.ReactNode; wide?: boolean; footer?: React.ReactNode }) {
   React.useEffect(() => {
@@ -174,7 +175,6 @@ export function CasebookOverlay({ state, onClose }: { state: GameState; onClose:
 
 export function SettingsOverlay({ snap, onClose }: { snap: Snapshot; onClose: () => void }) {
   const [confirm, setConfirm] = React.useState(false);
-  const [copied, setCopied] = React.useState<null | boolean>(null);
   return (
     <Sheet title="설정" onClose={onClose}>
       <div className="settings">
@@ -188,21 +188,21 @@ export function SettingsOverlay({ snap, onClose }: { snap: Snapshot; onClose: ()
             ))}
           </span>
         </div>
+        <div className="set-row">
+          <span className="set-label">효과음</span>
+          <span className="seg">
+            {([true, false] as const).map((on) => (
+              <button key={String(on)} className={`seg-btn ${snap.settings.sound === on ? "is-on" : ""}`} onClick={() => controller.setSettings({ sound: on })}>
+                {on ? "켬" : "끔"}
+              </button>
+            ))}
+          </span>
+        </div>
         {snap.state && (
           <>
             <div className="set-row">
               <span className="set-label">재생 기록</span>
-              <button
-                className="btn"
-                onClick={() => {
-                  navigator.clipboard?.writeText(controller.exportRun()).then(
-                    () => setCopied(true),
-                    () => setCopied(false),
-                  );
-                }}
-              >
-                {copied === true ? "복사했다" : copied === false ? "복사할 수 없다" : "시드와 행동 기록 복사"}
-              </button>
+              <CopyRunButton label="시드와 행동 기록 복사" />
             </div>
             <div className="set-row">
               <span className="set-label">시드</span>

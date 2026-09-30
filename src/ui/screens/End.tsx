@@ -3,6 +3,7 @@ import { cardDef, diseaseDef, db } from "../../core";
 import type { GameState } from "../../core";
 import { controller } from "../controller";
 import { registrationNo } from "../components/EmrBanner";
+import { CopyRunButton } from "../components/CopyRun";
 
 function causeText(cause: string | undefined): string {
   if (!cause) return "원인 미상";
@@ -23,7 +24,6 @@ export function EndScreen({ state }: { state: GameState }) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 4);
   const rules = new Map(db().interactions.map((x) => [x.id, x.text]));
-  const [copied, setCopied] = React.useState(false);
   return (
     <div className="end-wrap">
       <section className={`sheet end-sheet ${won ? "is-won" : "is-lost"}`}>
@@ -94,18 +94,7 @@ export function EndScreen({ state }: { state: GameState }) {
           {won ? "퇴원" : "종결"}
         </span>
         <div className="end-foot">
-          <button
-            className="btn"
-            onClick={() => {
-              const text = controller.exportRun();
-              navigator.clipboard?.writeText(text).then(
-                () => setCopied(true),
-                () => setCopied(false),
-              );
-            }}
-          >
-            {copied ? "기록을 복사했다" : "재생 기록 복사"}
-          </button>
+          <CopyRunButton />
           <button
             className="stamp-btn"
             onClick={() => {

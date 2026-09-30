@@ -17,23 +17,33 @@ import { Toasts } from "./components/Fx";
 
 type OverlayKind = null | "deck" | "casebook" | "settings" | "help";
 
-function useStageScale(): number {
+/** 무대(1280×720)를 뷰포트에 맞춰 줄이고 늘린다. 좁은 화면에서는 좌우 16px 여백을 둔다. */
+function useStageScale(ref: React.RefObject<HTMLDivElement>): number {
   const [scale, setScale] = React.useState(1);
   React.useEffect(() => {
+    const el = ref.current;
     const fit = () => {
-      const s = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
-      setScale(Math.max(0.3, s));
+      const w = el?.clientWidth || window.innerWidth;
+      const h = el?.clientHeight || window.innerHeight;
+      const gutter = w < 900 ? 16 : 0;
+      setScale(Math.max(0.2, Math.min((w - gutter * 2) / 1280, h / 720)));
     };
     fit();
     window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
-  }, []);
+    const ro = typeof ResizeObserver !== "undefined" && el ? new ResizeObserver(fit) : null;
+    if (ro && el) ro.observe(el);
+    return () => {
+      window.removeEventListener("resize", fit);
+      ro?.disconnect();
+    };
+  }, [ref]);
   return scale;
 }
 
 export function App() {
   const snap = useStore();
-  const scale = useStageScale();
+  const viewportRef = React.useRef<HTMLDivElement>(null);
+  const scale = useStageScale(viewportRef);
   const stageRef = React.useRef<HTMLDivElement>(null);
   const [overlay, setOverlay] = React.useState<OverlayKind>(null);
   React.useEffect(() => {
@@ -80,7 +90,7 @@ export function App() {
   }
 
   return (
-    <div className="viewport">
+    <div className="viewport" ref={viewportRef}>
       <div className="stage" ref={stageRef} style={{ transform: `translate(-50%, -50%) scale(${scale})` }}>
         {state && (
           <EmrBanner

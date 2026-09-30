@@ -80,6 +80,12 @@ async function main() {
     if (state) await ctx.addInitScript((data) => {
       (window as unknown as { claude: unknown }).claude = { hot: { data } };
     }, { state, log: [] });
+    // 테스트 환경에서는 CDN이 막혀 있어 같은 버전의 로컬 UMD 파일을 대신 준다
+    await ctx.route(/cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net/, (route) => {
+      const url = route.request().url();
+      const lib = url.includes("react-dom") ? "react-dom" : "react";
+      return route.fulfill({ path: `node_modules/${lib}/umd/${url.split("/").pop()}`, contentType: "application/javascript" });
+    });
     // 브라우저는 프록시 CA를 모르므로 글꼴은 Node 쪽에서 받아 넘긴다 (NODE_EXTRA_CA_CERTS로 검증된다)
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, async (route) => {
       try {

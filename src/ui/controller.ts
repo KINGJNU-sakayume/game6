@@ -2,6 +2,7 @@
 import { CONTENT } from "../content";
 import { cardDef, hasCard, hasRelicDef, installContent, newRun, stateHash, step } from "../core";
 import type { Action, GameEvent, GameState } from "../core";
+import { setSoundEnabled, sfx } from "./sfx";
 
 installContent(CONTENT);
 
@@ -11,6 +12,7 @@ const SETTINGS_KEY = "orderset.settings";
 export type AnimSpeed = "normal" | "fast" | "off";
 export interface Settings {
   anim: AnimSpeed;
+  sound: boolean;
 }
 
 export interface Fx {
@@ -84,7 +86,7 @@ class Controller {
   private fxId = 1;
 
   constructor() {
-    let settings: Settings = { anim: "normal" };
+    let settings: Settings = { anim: "normal", sound: true };
     const raw = safeGet(SETTINGS_KEY);
     if (raw) {
       try {
@@ -94,6 +96,7 @@ class Controller {
       }
     }
     this.snap = { state: null, version: 0, fx: [], settings };
+    setSoundEnabled(settings.sound);
   }
 
   subscribe = (fn: () => void): (() => void) => {
@@ -177,6 +180,7 @@ class Controller {
   setSettings(s: Partial<Settings>): void {
     const settings = { ...this.snap.settings, ...s };
     safeSet(SETTINGS_KEY, JSON.stringify(settings));
+    setSoundEnabled(settings.sound);
     this.emit({ settings });
   }
 
@@ -202,10 +206,47 @@ class Controller {
     this.persist(r.state);
     const fx = this.makeFx(r.events, s, r.state);
     const now = performance.now();
+    this.playSounds(action, fx, s, r.state, now);
     const keep = this.snap.fx.filter((f) => f.at + f.dur > now);
     this.emit({ state: r.state, fx: [...keep, ...fx], lastError: undefined });
     return true;
   };
+
+  /** 연출과 같은 시각에 효과음을 낸다 */
+  private playSounds(action: Action, fx: Fx[], before: GameState, after: GameState, now: number): void {
+    if (!this.snap.settings.sound) return;
+    if (action.type === "play_card") sfx.card();
+    if (action.type === "end_turn") sfx.turn();
+    if (before.phase !== after.phase) {
+      if (after.phase === "victory") window.setTimeout(() => sfx.victory(), 300);
+      else if (after.phase === "gameover") window.setTimeout(() => sfx.defeat(), 300);
+    }
+    const at = (f: Fx) => Math.max(0, f.at - now);
+    let lastHit = -1000;
+    for (const f of fx) {
+      const d = at(f);
+      let play: (() => void) | null = null;
+      if (f.kind === "float") {
+        if (f.tone === "hurt") play = () => sfx.hurt();
+        else if (f.tone === "block") play = () => sfx.block();
+        else if (f.tone === "heal") play = () => sfx.heal();
+        else if (f.tone === "harm") play = () => sfx.harm();
+        else if (f.tone === "void") play = () => sfx.dull();
+        else if (f.tone && ["key", "weak", "normal", "resistant"].includes(f.tone)) {
+          // 여러 번 때리는 카드가 소리를 겹쳐 내지 않도록 간격을 둔다
+          if (d - lastHit < 60) continue;
+          lastHit = d;
+          const grade = f.tone;
+          play = () => sfx.hit(grade);
+        }
+      } else if (f.kind === "stamp") play = f.text === "치료" ? () => sfx.cure() : () => sfx.stamp();
+      else if (f.kind === "toast" && (f.tone === "hazard" || f.tone === "contraindication")) play = () => sfx.alert();
+      if (play) {
+        if (d < 16) play();
+        else window.setTimeout(play, d);
+      }
+    }
+  }
 
   clearError(): void {
     if (this.snap.lastError) this.emit({ lastError: undefined });

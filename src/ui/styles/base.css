@@ -31,7 +31,10 @@ button {
 /* ── 무대 ── */
 .viewport {
   position: fixed;
-  inset: 0;
+  top: env(safe-area-inset-top, 0px);
+  bottom: env(safe-area-inset-bottom, 0px);
+  left: env(safe-area-inset-left, 0px);
+  right: env(safe-area-inset-right, 0px);
   overflow: hidden;
   overflow: clip;
   background:
@@ -75,7 +78,9 @@ button {
   .rotate-hint {
     display: flex;
     position: fixed;
-    inset: auto 16px 16px 16px;
+    left: 16px;
+    right: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     padding: 10px 14px;
     background: var(--paper);
     border: 1px solid var(--chrome-line);
@@ -255,5 +260,45 @@ button {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* 움직임 줄이기: 장식 움직임은 끄고, 알려 주는 글자는 제자리에서 나타났다 사라진다 */
+@media (prefers-reduced-motion: reduce) {
+  .hand-slot,
+  .card,
+  .postit,
+  .stamp-btn {
+    transition: none;
+  }
+  .hand-slot {
+    animation: none;
+  }
+  .fly-card {
+    display: none;
+  }
+  .disease.is-shaking,
+  .map-pen,
+  .relic.is-pulse,
+  .overlay {
+    animation: none;
+  }
+  .float,
+  .fx-stamp,
+  .toast,
+  .turn-banner {
+    animation-name: fade-hold;
+  }
+}
+@keyframes fade-hold {
+  0% {
+    opacity: 0;
+  }
+  8%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }

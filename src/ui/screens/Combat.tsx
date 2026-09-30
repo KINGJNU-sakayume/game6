@@ -10,6 +10,15 @@ import { Monitor, PumpRack } from "../components/Monitor";
 import { PileOverlay } from "../components/Overlays";
 import { hideTip, tipProps } from "../tooltip";
 
+interface Flying {
+  id: number;
+  cardId: string;
+  upgraded: boolean;
+  x: number;
+  y: number;
+  dest: "discard" | "exhaust" | "power";
+}
+
 interface Drag {
   uid: string;
   x: number;
@@ -72,6 +81,30 @@ function DurPanel({ name, items }: { name: string; items: InteractionPreview[] }
   );
 }
 
+/** 1턴 = 15분, 08:00에 시작한다 */
+function clock(turn: number): string {
+  const m = 8 * 60 + (turn - 1) * 15;
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
+/** 첫 전투에서만 보이는 인턴 수첩 메모 */
+function CoachNote({ onClose }: { onClose: () => void }) {
+  return (
+    <aside className="coach" aria-label="인턴 수첩">
+      <button className="coach-x" onClick={onClose} aria-label="메모 닫기">
+        ×
+      </button>
+      <div className="coach-title hand">인턴 수첩</div>
+      <ol className="coach-list">
+        <li>카드를 끌어 질병 위에 놓는다. 눌러서 고른 뒤 질병을 눌러도 된다.</li>
+        <li>질병 위 빨간 숫자가 이번 턴에 받을 피해. 안정화가 먼저 막는다.</li>
+        <li>진단 카드로 질병을 밝히면 반응표가 보인다. 특효 약은 두 배로 듣는다.</li>
+        <li>오더를 다 쓰면 턴 종료 (E).</li>
+      </ol>
+    </aside>
+  );
+}
+
 function LogPanel({ state, open, onToggle }: { state: GameState; open: boolean; onToggle: () => void }) {
   const log = state.combat!.log;
   const ref = React.useRef<HTMLOListElement>(null);
@@ -94,7 +127,7 @@ function LogPanel({ state, open, onToggle }: { state: GameState; open: boolean; 
           <ol ref={ref} className="log-list">
             {log.map((l, i) => (
               <li key={i} className={`log-${l.kind}`}>
-                <span className="log-time mono">{`${String(8 + Math.floor(((l.turn - 1) * 15) / 60)).padStart(2, "0")}:${String(((l.turn - 1) * 15) % 60).padStart(2, "0")}`}</span>
+                <span className="log-time mono">{clock(l.turn)}</span>
                 <span>{l.text}</span>
               </li>
             ))}
@@ -113,7 +146,13 @@ export function CombatScreen({ state, fx, settings }: { state: GameState; fx: Fx
   const [drag, setDrag] = React.useState<Drag | null>(null);
   const [pile, setPile] = React.useState<null | "draw" | "discard" | "exhaust">(null);
   const [logOpen, setLogOpen] = React.useState(false);
-  void settings;
+  const [flying, setFlying] = React.useState<Flying[]>([]);
+  const [coachOpen, setCoachOpen] = React.useState(true);
+  const firstFight = state.run.stats.combatsWon === 0 && state.run.act === 1 && c.enemies.length === 1;
+  const flyId = React.useRef(1);
+  const handRef = React.useRef(c.hand);
+  handRef.current = c.hand;
+  const animOn = settings.anim !== "off";
 
   const hand = c.hand;
   const living = c.enemies.filter((e) => !e.cured);
@@ -134,15 +173,26 @@ export function CombatScreen({ state, fx, settings }: { state: GameState; fx: Fx
 
   const play = React.useCallback(
     (uid: string, targetUid?: string) => {
+      // 손에서 떠나는 카드의 자리를 기억했다가 더미로 날려 보낸다
+      const ci = handRef.current.find((h) => h.uid === uid);
+      const el = document.querySelector(`.hand-slot[data-uid="${uid}"]`);
+      const from = el ? toStage({ clientX: el.getBoundingClientRect().left, clientY: el.getBoundingClientRect().top }) : null;
       const ok = controller.dispatch({ type: "play_card", cardUid: uid, targetUid });
       if (ok) {
         setSelected(null);
         setHoverCard(null);
         hideTip();
+        if (ci && from && animOn) {
+          const kws = cardDef(ci.cardId, ci.upgraded).keywords ?? [];
+          const dest: Flying["dest"] = kws.includes("power") ? "power" : kws.includes("exhaust") ? "exhaust" : "discard";
+          const id = flyId.current++;
+          setFlying((f) => [...f, { id, cardId: ci.cardId, upgraded: ci.upgraded, x: from.x, y: Math.min(from.y, 500), dest }]);
+          window.setTimeout(() => setFlying((f) => f.filter((x) => x.id !== id)), 560);
+        }
       }
       return ok;
     },
-    [],
+    [animOn],
   );
 
   const tryPlaySelected = React.useCallback(
@@ -237,7 +287,7 @@ export function CombatScreen({ state, fx, settings }: { state: GameState; fx: Fx
   const startX = 640 - ((n - 1) * spacing + cw) / 2 + 20;
 
   return (
-    <div className="combat" onClick={(e) => {
+    <div className={`combat ${animOn ? "" : "anim-off"}`} onClick={(e) => {
       if (e.target === e.currentTarget) setSelected(null);
     }}>
       <div className="combat-left">
@@ -318,8 +368,9 @@ export function CombatScreen({ state, fx, settings }: { state: GameState; fx: Fx
           return (
             <div
               key={ci.uid}
+              data-uid={ci.uid}
               className={`hand-slot ${isHover ? "is-hover" : ""} ${isSel ? "is-sel" : ""} ${isDragging ? "is-dragging" : ""}`}
-              style={{ transform, zIndex: isHover || isSel ? 40 : 10 + i }}
+              style={{ transform, zIndex: isHover || isSel ? 40 : 10 + i, animationDelay: `${i * 45}ms` }}
             >
               <Card
                 cardId={ci.cardId}
@@ -346,6 +397,12 @@ export function CombatScreen({ state, fx, settings }: { state: GameState; fx: Fx
         })}
       </div>
 
+      {flying.map((f) => (
+        <div key={f.id} className={`fly-card to-${f.dest}`} style={{ "--fx": `${f.x}px`, "--fy": `${f.y}px` } as React.CSSProperties} aria-hidden="true">
+          <Card cardId={f.cardId} upgraded={f.upgraded} />
+        </div>
+      ))}
+
       {drag?.moved && activeCi && (
         <div className="drag-ghost" style={{ transform: `translate(${drag.x - 70}px, ${drag.y - 60}px) rotate(-4deg)` }}>
           <Card cardId={activeCi.cardId} upgraded={activeCi.upgraded} cost={cardCost(state, activeCi.uid)} />
@@ -357,6 +414,7 @@ export function CombatScreen({ state, fx, settings }: { state: GameState; fx: Fx
         </svg>
       )}
 
+      {firstFight && coachOpen && <CoachNote onClose={() => setCoachOpen(false)} />}
       <LogPanel state={state} open={logOpen} onToggle={() => setLogOpen((o) => !o)} />
       {pile && <PileOverlay state={state} pile={pile} onClose={() => setPile(null)} />}
     </div>

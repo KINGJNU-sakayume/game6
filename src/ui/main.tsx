@@ -7,6 +7,7 @@ import "./styles/screens.css";
 import "./styles/combat.css";
 import { App } from "./App";
 import { controller } from "./controller";
+import { unlockAudio } from "./sfx";
 import type { Action, GameState } from "../core";
 
 declare global {
@@ -20,6 +21,9 @@ declare global {
     };
   }
 }
+
+window.addEventListener("pointerdown", unlockAudio, { once: true });
+window.addEventListener("keydown", unlockAudio, { once: true });
 
 function start(data: unknown) {
   const d = (data ?? {}) as { state?: GameState | null; log?: Action[] };
