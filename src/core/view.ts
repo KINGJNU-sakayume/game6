@@ -361,16 +361,21 @@ export function previewDamage(state: GameState, cardUid: Uid, targetUid: Uid): D
   const hits = op.hits ?? 1;
   const calc = calcPlayerDamage(state, ctx, enemy, base, tags, op.mods);
   const others = calc.mults.slice(1);
-  if (calc.grade.basis === "generic") return { amount: calc.final * hits, known: true, grade: "generic" };
   const spectrum = def.drug?.spectrum;
   const confirmed = enemy.knowledge >= 2;
+  // 범용 여부도 감별 목록으로 판단한다 (숨은 질병의 판정을 쓰면 정답이 샌다)
+  const live = liveHypotheses(enemy);
+  if (!confirmed && live.every((h) => textbook(h.diseaseId, tags, spectrum).generic)) {
+    return { amount: Math.floor((calc.d1 * combinePct(others)) / 100) * hits, known: true, grade: "generic" };
+  }
+  if (confirmed && calc.grade.basis === "generic") return { amount: calc.final * hits, known: true, grade: "generic" };
   const variantKnown = !calc.grade.dependsOnVariant || enemy.organismKnown;
   if (confirmed && variantKnown) {
     if (calc.grade.harmful) return { amount: 0, known: true, grade: "harmful", harmful: true };
     return { amount: calc.final * hits, known: true, grade: calc.grade.grade === "not_indicated" ? "not_indicated" : calc.grade.grade };
   }
   const byHypothesis: HypothesisPreview[] = [];
-  for (const h of liveHypotheses(enemy)) {
+  for (const h of live) {
     const tb = textbook(h.diseaseId, tags, spectrum);
     const nameKo = diseaseDef(h.diseaseId).nameKo;
     if (tb.harmful && !tb.varies) {

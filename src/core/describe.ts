@@ -275,7 +275,9 @@ export function describeCard(cardId: string, upgraded = false): CardText {
         .join(", ")}`;
     } else out.sideEffectLine = "부작용 없음";
   }
-  out.full = [...out.lines, ...(out.options ?? []), out.keywords.join(". "), out.drugLine, out.sideEffectLine].filter(Boolean).join(". ");
+  // 선택지는 "하나를 고른다: A · B · C" 한 문장으로
+  const body = out.options?.length ? [...out.lines.slice(0, -1), `${out.lines.at(-1) ?? ""} ${out.options.join(" · ")}`.trim()] : out.lines;
+  out.full = [...body, out.keywords.join(". "), out.drugLine, out.sideEffectLine].filter(Boolean).join(". ");
   return out;
 }
 

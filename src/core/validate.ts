@@ -1,6 +1,7 @@
 // 콘텐츠 검증과 가치 예산 계산. design.md §3.10, D4
 import { describeCard } from "./describe";
 import { allMoves } from "./disease";
+import { expectedFindings } from "./evidence";
 import { gradeFor, hypotheticalEnemy } from "./textbook";
 import { isPlayerKnownCondition } from "./values";
 import { cardDef, installContent } from "./registry";
@@ -339,6 +340,21 @@ export function validateContent(dbx: ContentDB): ValidationResult {
       if (c.weight <= 0) errors.push(`내원 양상 ${p.id}: 가중치는 양수 (${c.disease})`);
     }
     for (const ch of p.visible ?? []) if (!channelIds.has(ch)) errors.push(`내원 양상 ${p.id}: 없는 경로 ${ch}`);
+    // 감별 대상 두 질병마다, 활력징후 말고 적어도 한 경로에서 기대 소견이 겹치지 않아야 한다 (검사로 가를 수 있다)
+    if (p.candidates.every((c) => diseaseIds.has(c.disease))) {
+      for (let i = 0; i < p.candidates.length; i++)
+        for (let j = i + 1; j < p.candidates.length; j++) {
+          const a = p.candidates[i]!.disease;
+          const b = p.candidates[j]!.disease;
+          const split = dbx.channels.some((ch) => {
+            if (ch.id === "vitals") return false;
+            const fa = expectedFindings(a, ch.id);
+            const fb = expectedFindings(b, ch.id);
+            return fa.length > 0 && fb.length > 0 && !fa.some((f) => fb.includes(f));
+          });
+          if (!split) errors.push(`내원 양상 ${p.id}: ${a}와 ${b}를 구별할 소견이 없다`);
+        }
+    }
   }
   for (const e of dbx.encounters) for (const x of e.problems) if (!presIds.has(x.presentation)) errors.push(`인카운터 ${e.id}: 없는 내원 양상 ${x.presentation}`);
   for (const cd of dbx.consults) {
