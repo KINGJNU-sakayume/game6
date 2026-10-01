@@ -106,6 +106,28 @@ async function main() {
         const hover = await checkHoverStable(page);
         if (hover) errors.push(hover);
       }
+      // v2.1 의도: 확진 전에는 압박 종류와 크기 등급(경미·중등·심각)만 보이고 숫자는 보이지 않는다
+      if (!seen.intentChecked && (await page.locator(".intent-row .intent").count())) {
+        seen.intentChecked = 1;
+        const named = await page.locator(".intent-row .intent-name").count();
+        const nums = await page.locator(".intent-row .intent-num").allTextContents();
+        if (!named) {
+          if (!(await page.locator(".intent-row .intent-band").count())) errors.push("확진 전 의도에 크기 등급이 보이지 않는다");
+          const bad = nums.filter((t) => !/^(경미|중등|심각)$/.test(t.trim()));
+          if (bad.length) errors.push(`확진 전 의도에 정확한 수치가 보인다: ${bad.join(", ")}`);
+        }
+      }
+      // v2.1 미생물 기록: 배너 단추로 열고 닫는다 (한 번)
+      if (!seen.micro) {
+        const btn = page.locator(".emr-btn", { hasText: "미생물" });
+        if (await btn.count()) {
+          await btn.click();
+          if (!(await page.locator(".ov-sheet .micro").count())) errors.push("미생물 기록 창이 열리지 않았다");
+          else seen.micro = 1;
+          await page.keyboard.press("Escape");
+          continue;
+        }
+      }
       // 작업 진단이 없고 의심 이상인 가설이 있으면 정한다 (감별 목록 클릭 경로 검사)
       if (!(await page.locator(".hyp.is-wd").count())) {
         const lead = page.locator(".hyp.lv-strong .hyp-btn:not(:disabled), .hyp.lv-suspected .hyp-btn:not(:disabled)");
@@ -120,8 +142,10 @@ async function main() {
       const n = await cards.count();
       let played = false;
       for (let k = 0; k < n && !played; k++) {
+        // 앞의 시도로 쓸 수 있는 카드 수가 바뀌었을 수 있다(오더·결정 상태)
+        if (k >= (await cards.count())) break;
         const before = await page.locator(".hand-slot").count();
-        await cards.nth(k).click();
+        await cards.nth(k).click({ timeout: 3000 });
         // 대상이 필요한 카드는 질병을 누르고, 아니면 한 번 더 눌러 쓴다
         if (await page.locator(".disease.is-targetable").count()) {
           await page.locator(".disease.is-targetable .lightbox").first().click();
@@ -174,6 +198,8 @@ async function main() {
   if (!seen.combat) errors.push("전투 화면에 닿지 못했다");
   else if (!seen.reward) errors.push("전투에서 한 번도 이기지 못했다(보상 화면에 닿지 못함)");
   if (seen.combat && !seen.decision) errors.push("임상 결정 창이 한 번도 뜨지 않았다");
+  if (seen.combat && !seen.intentChecked) errors.push("의도 표시를 확인하지 못했다");
+  if (seen.combat && !seen.micro) errors.push("미생물 기록 창을 열지 못했다");
 
   const report = `phases seen: ${JSON.stringify(seen)}\nfinal: ${final}`;
   console.log(report);

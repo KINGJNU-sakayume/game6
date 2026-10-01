@@ -105,7 +105,8 @@ if (cmd === "combat") {
     return runWithMetrics(seed, (s) => bot.choose(s));
   });
   const agg = aggregate(runs);
-  const named = { ...agg, deaths: Object.fromEntries(Object.entries(agg.deaths).map(([k, v]) => [deathName(k), v])) };
+  const rename = (d: Record<string, number>) => Object.fromEntries(Object.entries(d).map(([k, v]) => [deathName(k), v]));
+  const named = { ...agg, deaths: rename(agg.deaths), deathsByAct: Object.fromEntries(Object.entries(agg.deathsByAct).map(([a, d]) => [a, rename(d)])) };
   console.log(`bot=${botName}`);
   console.log(formatAggregate(named, cmd === "metrics" ? 30 : 0));
   if (arg("json", "")) {

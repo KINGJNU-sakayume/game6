@@ -35,6 +35,8 @@ export interface RunMetrics {
   combatsWithRevision: number;
   finalPressure: number;
   lateCultures: number;
+  /** 작업 진단이 있을 때 투약 오더에서 고른 선택지의 위치 (0 = 맨 위) */
+  medOrderPicks: Record<number, number>;
   /** 감별 대상이 둘 이상인 일반 전투: 검사 없이 끝낸 전투와 검사한 전투의 활력 손실 */
   blindLoss: number[];
   investigatedLoss: number[];
@@ -111,6 +113,7 @@ export function runWithMetrics(seed: string, choose: (s: GameState) => Action, m
     combatsWithRevision: 0,
     finalPressure: 0,
     lateCultures: 0,
+    medOrderPicks: {},
     blindLoss: [],
     investigatedLoss: [],
     stats: s.run.stats,
@@ -165,6 +168,15 @@ export function runWithMetrics(seed: string, choose: (s: GameState) => Action, m
       }
     }
     const a = choose(s);
+    const pend = s.pending;
+    if (pend?.kind === "choose_option" && pend.source === "med_order" && a.type === "choose_option") {
+      const tgt = s.combat?.enemies.find((e) => e.uid === pend.ctx.targetUid);
+      if (tgt?.workingDx) {
+        const p = pend;
+        const idx = p.options.findIndex((o) => o.id === a.optionId);
+        m.medOrderPicks[idx] = (m.medOrderPicks[idx] ?? 0) + 1;
+      }
+    }
     const before = s;
     const r = step(s, a);
     s = r.state;
@@ -241,6 +253,8 @@ export interface Aggregate {
   actReach: Record<number, number>;
   avgFloors: number;
   deaths: Record<string, number>;
+  /** 막별 사망 원인 */
+  deathsByAct: Record<string, Record<string, number>>;
   combatLossByAct: Record<string, { mean: number; n: number; turns: number }>;
   unusableHandPct: number;
   deadTreatmentDrawPct: number;
@@ -275,6 +289,7 @@ export interface Aggregate {
   deescalations: number;
   meanPressure: number;
   lateCultureResults: number;
+  medOrderPicks: Record<number, number>;
   blindLoss: { mean: number; n: number };
   investigatedLoss: { mean: number; n: number };
 }
@@ -286,9 +301,14 @@ export function aggregate(runs: RunMetrics[]): Aggregate {
   const combats = sum((r) => r.combats);
   const actReach: Record<number, number> = {};
   const deaths: Record<string, number> = {};
+  const deathsByAct: Record<string, Record<string, number>> = {};
   for (const r of runs) {
     actReach[r.act] = (actReach[r.act] ?? 0) + 1;
-    if (!r.won) deaths[r.deathCause ?? "?"] = (deaths[r.deathCause ?? "?"] ?? 0) + 1;
+    if (!r.won) {
+      deaths[r.deathCause ?? "?"] = (deaths[r.deathCause ?? "?"] ?? 0) + 1;
+      const a = (deathsByAct[`${r.act}막`] ??= {});
+      a[r.deathCause ?? "?"] = (a[r.deathCause ?? "?"] ?? 0) + 1;
+    }
   }
   const byAct: Record<string, number[]> = {};
   const turnsByAct: Record<string, number[]> = {};
@@ -324,6 +344,7 @@ export function aggregate(runs: RunMetrics[]): Aggregate {
     actReach,
     avgFloors: sum((r) => r.floors) / Math.max(1, runs.length),
     deaths,
+    deathsByAct,
     combatLossByAct,
     unusableHandPct: sum((r) => r.unusableCards) / Math.max(1, sum((r) => r.handCards)),
     deadTreatmentDrawPct: sum((r) => r.deadTreatmentDraws) / Math.max(1, sum((r) => r.treatmentDraws)),
@@ -358,6 +379,10 @@ export function aggregate(runs: RunMetrics[]): Aggregate {
     deescalations: st((s) => s.deescalations),
     meanPressure: sum((r) => r.finalPressure) / Math.max(1, runs.length),
     lateCultureResults: sum((r) => r.lateCultures),
+    medOrderPicks: runs.reduce((acc, r) => {
+      for (const [k, v] of Object.entries(r.medOrderPicks)) acc[Number(k)] = (acc[Number(k)] ?? 0) + v;
+      return acc;
+    }, {} as Record<number, number>),
     blindLoss: { mean: mean(runs.flatMap((r) => r.blindLoss)), n: sum((r) => r.blindLoss.length) },
     investigatedLoss: { mean: mean(runs.flatMap((r) => r.investigatedLoss)), n: sum((r) => r.investigatedLoss.length) },
   };
@@ -368,6 +393,10 @@ export function formatAggregate(a: Aggregate, top = 25): string {
   const lines: string[] = [];
   lines.push(`런 ${a.n}회 · 승률 ${pct(a.winRate)} · 평균 도달 층 ${a.avgFloors.toFixed(1)} · 도달 막 ${JSON.stringify(a.actReach)}`);
   lines.push(`사망 원인: ${Object.entries(a.deaths).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ${v}`).join(", ")}`);
+  for (const [act, d] of Object.entries(a.deathsByAct).sort()) {
+    const tot = Object.values(d).reduce((x, y) => x + y, 0);
+    lines.push(`  ${act} 사망 ${tot}: ${Object.entries(d).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ${v}`).join(", ")}`);
+  }
   lines.push("전투당 활력 손실:");
   for (const [k, v] of Object.entries(a.combatLossByAct).sort()) lines.push(`  ${k.padEnd(12)} ${v.mean.toFixed(1).padStart(5)} (n=${v.n}, 평균 ${v.turns.toFixed(1)}턴)`);
   lines.push("── 결정 지표 ──");
@@ -390,6 +419,8 @@ export function formatAggregate(a: Aggregate, top = 25): string {
   lines.push(`범위 축소 / 전투                        ${a.deescalationsPerCombat.toFixed(2)} (범위 축소 ${a.deescalations}회, 범위 축소가 있던 런 ${a.runsWithDeescalation}/${a.n})`);
   lines.push(`3막 감염 전투 항생제: 표적 ${pct(a.act3TargetedPct)} (투여 ${a.act3Abx})`);
   lines.push(`다음 전투에서 도착한 배양 결과 / 런       ${(a.lateCultureResults / Math.max(1, a.n)).toFixed(2)} · 런 끝 선택 압력 평균 ${a.meanPressure.toFixed(1)}`);
+  const mo = Object.values(a.medOrderPicks).reduce((x, y) => x + y, 0);
+  lines.push(`작업 진단이 있을 때 투약 오더 선택 위치   ${[0, 1, 2, 3].map((i) => `${i + 1}번째 ${pct((a.medOrderPicks[i] ?? 0) / Math.max(1, mo))}`).join(" · ")} (n=${mo})`);
   lines.push(`처방 반납 / 전투                        ${a.returnsPerCombat.toFixed(2)}`);
   lines.push(`기대 반응 없음(치료 실패 소견) / 전투     ${a.noResponsePerCombat.toFixed(2)}`);
   lines.push(`선택지 분포 (상위 ${top}):`);

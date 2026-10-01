@@ -44,7 +44,7 @@ export const ACT2_DISEASES = [
       { id: "inflame", nameKo: "염증", pressure: "worsening", effects: [toSelf("inflammation", 3), atk(5)] },
       { id: "lymphangitis", nameKo: "림프관염", pressure: "pain", effects: [atk(6), toPatient("vulnerable", 1)] },
       { id: "abscess_warning", nameKo: "고름집 형성 위험", pressure: "complication", effects: [warn("abscess", 3)] },
-      { id: "abscess", nameKo: "고름집 형성", pressure: "worsening", effects: [raise(10), toSelf("aggravation", 2)] },
+      { id: "abscess", nameKo: "고름집 형성", pressure: "worsening", effects: [raise(8), toSelf("aggravation", 1)] },
     ],
     ai: { weights: { spread: 45, inflame: 30, lymphangitis: 25 }, noRepeat: ["inflame"] },
     art: { region: "leg", lesion: [0.4, 0.56, 0.11] },

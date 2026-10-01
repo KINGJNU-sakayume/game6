@@ -5,6 +5,7 @@ import {
   cardDef,
   cardTextbook,
   channelValue,
+  contextRelevance,
   commitCheck,
   db,
   diseaseDef,
@@ -286,15 +287,12 @@ export class ClinicianBot {
   private rewardValue(state: GameState, id: string): number {
     const def = cardDef(id);
     if (def.zone === "formulary") {
-      let rel = 0;
+      // 이번 막과 다음 막에서 만날 가능성으로 가중한 쓸모 (콘텐츠의 교과서 역학, 플레이어 정보)
       const act = state.run.act;
-      const diseases = db().diseases.filter((d) => d.act === act || d.act === Math.min(3, act + 1));
-      for (const d of diseases) {
-        const tb = cardTextbook(d.id, def);
-        if (!tb.generic && !tb.harmful && (tb.best === "key" || tb.best === "weak")) rel += 2;
-        else if (!tb.generic && !tb.harmful && tb.best === "normal") rel += 1;
-      }
-      return 4 + rel * 1.5;
+      const acts = act < 3 ? ([act, act + 1] as (1 | 2 | 3)[]) : ([act] as (1 | 2 | 3)[]);
+      const rel = contextRelevance(state, id, acts, act < 3 ? [1, 0.5] : [1]);
+      if (state.run.formulary.some((c) => c.cardId === id)) return 3;
+      return 4 + rel * 0.15;
     }
     const base: Record<string, number> = {
       culture: 11,

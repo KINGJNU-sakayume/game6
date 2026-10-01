@@ -51,7 +51,8 @@ Pages 배포를 쓰려면 저장소 설정 두 가지가 필요하다(한 번만
 ## 문서
 
 - `docs/REVIEW.md` — 원 설계서(v1.0) 비판적 검토 40항목
-- `docs/design.md` — 설계서 v2.0 (감별 진단·임상 결정·처방집, 아키텍처, 콘텐츠 목록)
+- `docs/design.md` — 설계서 v2.1 (감별 진단·임상 결정·처방집·의도 대본·미생물 기록, 아키텍처, 콘텐츠 목록)
+- `docs/medical-review.md` — 의학 검토 문서 (`npm run medical:review`로 생성, 소유자 확인용)
 - `docs/design-v1.1.md` — 이전 설계서 (진단 포인트 모델, 보존본)
 - `docs/DECISIONS.md` — 구현하며 바꾸거나 새로 정한 것
 - `docs/PROGRESS.md` — 마일스톤별 확인 결과

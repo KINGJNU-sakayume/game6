@@ -306,7 +306,7 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
         <section>
           <h4>한 턴의 흐름</h4>
           <p>
-            <b>안정화 → 감별 → 결정 → 치료 → 재평가.</b> 오더 3으로 카드를 쓴다. 턴을 마치면 질병이 표시된 방향으로 환자를 악화시킨다. <b>안정화</b>는 그 악화를 먼저 막고 내 턴이 시작되면 사라진다.
+            <b>안정화 → 감별 → 결정 → 치료 → 재평가.</b> 오더 3으로 카드를 쓴다. 턴을 마치면 질병이 표시된 방향으로 환자를 악화시킨다. 확진 전에는 <b>방향(압박 종류)과 크기(경미 ≤6 · 중등 7–12 · 심각 13+)</b>만 보이고, 무엇이 일어났는지는 일어난 뒤에 보인다. 나빠지는 방식이 단서가 되면 <b>경과 관찰</b> 소견으로 남는다. <b>안정화</b>는 그 악화를 먼저 막고 내 턴이 시작되면 사라진다.
           </p>
         </section>
         <section>
@@ -330,7 +330,7 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
         <section>
           <h4>반응과 원인균</h4>
           <p>
-            <span className="gchip g-key">특효</span> ×2 <span className="gchip g-weak">우수</span> ×1.5 <span className="gchip g-normal">보통</span> <span className="gchip g-resistant">저하</span> ×0.5 <span className="gchip g-immune">무효</span> <span className="gchip g-harmful">금기</span> 악화. 원인균을 모른 채 쓴 항생제는 내성을 키운다. 배양은 그람 염색을 바로, 배양·감수성을 2턴 뒤에 준다.
+            <span className="gchip g-key">특효</span> ×2 <span className="gchip g-weak">우수</span> ×1.5 <span className="gchip g-normal">보통</span> <span className="gchip g-resistant">저하</span> ×0.5 <span className="gchip g-immune">무효</span> <span className="gchip g-harmful">금기</span> 악화. 원인균을 모른 채 쓴 항생제는 내성을 키운다. 배양은 그람 염색을 바로, 배양·감수성을 2턴 뒤에 준다. 전투가 끝나도 배양은 자라 다음 전투에서 결과가 오고, <b>미생물 기록</b>(배너)에 남는다. 광범위·경험적 항생제는 <b>선택 압력</b>을 쌓아 이후 감염을 내성균 쪽으로 기울이고, 원인균을 확인한 뒤 범위 축소가 그것을 줄인다.
           </p>
         </section>
         <section>
