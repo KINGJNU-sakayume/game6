@@ -292,7 +292,7 @@ export const ACT2_DISEASES = [
     effectiveness: { anticoagulant: "weak", thrombolytic: "weak", fluid: "resistant", antiplatelet: "immune" },
     definitive: [
       { tags: ["thrombolytic"], text: "혈전용해: 우심실 부담이 풀렸다", effects: [clearSelf("aggravation"), { op: "damage", amount: 10, target: "target" }] },
-      { tags: ["anticoagulant"], text: "항응고: 혈전이 더 자라지 않는다", effects: [clearSelf("aggravation")] },
+      { tags: ["anticoagulant"], text: "항응고: 혈전이 더 자라지 않고 재발 위험이 줄었다", effects: [clearSelf("aggravation"), cancel] },
     ],
     moves: [
       { id: "rv_strain", nameKo: "급성 우심부전", pressure: "hemodynamic", effects: [atk(13)] },
@@ -300,6 +300,10 @@ export const ACT2_DISEASES = [
       { id: "hypoxemia", nameKo: "저산소혈증", pressure: "respiratory", effects: [atk(7), toPatient("hypoxia", 1)] },
       { id: "tachypnea", nameKo: "빠른 호흡", pressure: "respiratory", effects: [atk(5)] },
       { id: "pleuritic_pain", nameKo: "흉막성 흉통", pressure: "pain", effects: [atk(9)] },
+      { id: "tachycardia", nameKo: "빈맥", pressure: "cardiac", effects: [atk(9)] },
+      { id: "presyncope", nameKo: "실신할 듯함", pressure: "hemodynamic", effects: [atk(5), toPatient("vulnerable", 1)] },
+      { id: "recurrent_warning", nameKo: "색전 재발 위험", pressure: "complication", effects: [warn("recurrent_embolus", 4)] },
+      { id: "recurrent_embolus", nameKo: "색전 재발", pressure: "hemodynamic", effects: [atk(18, 1, anticoagHalf)], course: "crs_recurrent_embolus" },
       { id: "clot_burden", nameKo: "혈전 추가", pressure: "worsening", effects: [toSelf("aggravation", 2), block(8), atk(4)] },
     ],
     ai: { weights: { rv_strain: 40, hypoxemia: 35, clot_burden: 25 }, noRepeat: ["clot_burden"] },
@@ -388,7 +392,8 @@ export const ACT2_DISEASES = [
       { id: "hypovolemic", nameKo: "저혈량 쇼크", effects: [toPatient("hypotension", 1), atk(5)] },
       { id: "rebleed_warning", nameKo: "재출혈 예고", effects: [warn("rebleed", 3)] },
       { id: "rebleed", nameKo: "재출혈", effects: [atk(20), addCard("bleeding", 2, "discard")] },
-      { id: "coagulopathy", nameKo: "응고 장애", pressure: "bleeding", effects: [toSelf("aggravation", 2), block(10)] },
+      { id: "coagulopathy", nameKo: "응고 장애", pressure: "worsening", effects: [toSelf("aggravation", 2), block(10)] },
+      { id: "melena", nameKo: "흑색변", pressure: "bleeding", effects: [atk(5)] },
     ],
     ai: {
       opening: ["hematemesis"],

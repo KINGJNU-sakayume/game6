@@ -173,9 +173,18 @@ export const CONSULTS = [
     id: "neuro",
     nameKo: "신경과",
     categories: ["neuro"],
-    traits: ["thrombolysable"],
+    traits: ["thrombolysable", "intracranial_bleed"],
     recommendations: [
       { id: "ne_ct", label: "뇌 CT", detail: "CT 소견을 바로 얻는다 (혈전용해 전에 필수)", effects: [look("ct")] },
+      {
+        id: "ne_bp",
+        label: "혈압 조절",
+        detail: "메토프롤롤을 손에 (뇌출혈의 혈종 확장을 줄인다)",
+        risk: "뇌경색이면 이득이 적다",
+        requires: { suspect: { traits: ["intracranial_bleed"], level: "possible" } },
+        requiresText: "뇌출혈 가설이 있을 때만",
+        effects: [give("metoprolol")],
+      },
       {
         id: "ne_tpa",
         label: "혈전용해 준비",

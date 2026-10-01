@@ -78,6 +78,7 @@ export const TRAITS = [
   { id: "hyperammonemia", nameKo: "고암모니아혈증" },
   { id: "gi_bleed", nameKo: "위장관 출혈" },
   { id: "hemorrhage", nameKo: "출혈성 질환" },
+  { id: "intracranial_bleed", nameKo: "뇌출혈" },
   { id: "source", nameKo: "감염원 제거 가능" },
   { id: "resp_failure", nameKo: "호흡 부전" },
   { id: "pleural", nameKo: "흉막강 질환" },

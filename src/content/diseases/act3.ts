@@ -139,10 +139,16 @@ export const ACT3_DISEASES = [
       lab_coag: "coag_dic",
     },
     effectiveness: { transfusion: "weak", anticoagulant: "resistant", thrombolytic: "harmful", antiplatelet: "harmful" },
-    definitive: [{ tags: ["transfusion"], text: "혈액제제 보충: 출혈이 잦아든다", effects: [{ op: "exhaust_cards", from: ["hand", "draw", "discard"], filter: { ids: ["bleeding"] }, amount: "all" }] }],
+    definitive: [{ tags: ["transfusion"], text: "혈액제제 보충: 출혈이 잦아든다", effects: [{ op: "exhaust_cards", from: ["hand", "draw", "discard"], filter: { ids: ["bleeding"] }, amount: "all" }, clearSelf("active_bleeding")] }],
+    // v2.1: 출혈 내원 양상에서 상부위장관 출혈과 같은 모습으로 온다 (활동성 출혈: 턴마다 활력 −1)
+    passives: [
+      { on: "combat_start", effects: [toSelf("active_bleeding", 1)] },
+      { on: "turn_start", condition: { hasStatus: { target: "self", status: "active_bleeding" } }, effects: [{ op: "lose_vitality", amount: 1 }] },
+    ],
     moves: [
-      { id: "petechiae", nameKo: "점상출혈", effects: [atk(6), addCard("bleeding", 1, "discard")] },
-      { id: "consumption", nameKo: "응고인자 소모", effects: [toPatient("vulnerable", 2), atk(4)] },
+      { id: "hemorrhage", nameKo: "여러 곳의 출혈", pressure: "bleeding", effects: [atk(10)] },
+      { id: "petechiae", nameKo: "점상출혈", pressure: "bleeding", effects: [atk(6), addCard("bleeding", 1, "discard")] },
+      { id: "consumption", nameKo: "응고인자 소모", pressure: "worsening", effects: [toPatient("vulnerable", 2), atk(4)] },
       { id: "microthrombi", nameKo: "미세혈전", pressure: "worsening", effects: [atk(6, 2)] },
     ],
     ai: { weights: { petechiae: 35, consumption: 25, microthrombi: 40 }, noRepeat: ["consumption"] },

@@ -68,6 +68,8 @@ export const FINDINGS: FindingDef[] = [
   f("vt_dyspneic", "호흡수 28, SpO₂ 91%, 맥박 112", 1),
   f("vt_ward_hypox", "호흡수 26, 산소 2L에도 SpO₂ 89%, 맥박 110", 1),
   f("vt_vent_crash", "인공호흡기 고압 경보, SpO₂ 82%, 맥박 130", 1),
+  f("vt_epigastric", "맥박 112, 식은땀, 혈압 132/84", 1),
+  f("vt_palp", "맥박 138, 혈압 108/70, 숨이 가쁨", 1),
   // ── 발병 양상 ──
   f("on_nonspecific", "경과에 뚜렷한 특징이 없다", 0),
   f("on_migrating", "명치 통증이 몇 시간 뒤 오른쪽 아래로 옮겨 감", 1),
@@ -108,6 +110,7 @@ export const FINDINGS: FindingDef[] = [
   f("as_vomit_back", "구토, 등으로 뻗치는 명치 통증", 1),
   f("as_sputum_purulent", "기관 튜브로 누런 가래가 늘어남", 1),
   f("as_chills_line", "라인으로 수액을 넣을 때마다 오한", 1),
+  f("as_headache_vomit", "벼락 치듯 시작한 두통과 구토", 1),
   // ── 병력·위험 인자 ──
   f("rk_none", "특별한 위험 인자는 없다", 0),
   f("rk_sick_contacts", "함께 식사한 가족도 같은 증상", 1),
@@ -129,6 +132,7 @@ export const FINDINGS: FindingDef[] = [
   f("rk_icu_devices", "인공호흡기와 중심정맥관을 달고 있다", 1),
   f("rk_nephrotoxins", "반코마이신과 조영제에 노출됨", 1),
   f("rk_sepsis_source", "며칠 전부터 폐렴·패혈증 치료 중", 1),
+  f("rk_anticoag", "와파린을 먹고 있고 혈압약을 자주 거름", 1),
   // ── 심폐 진찰 ──
   f("cd_normal", "호흡음과 심음 정상", 0),
   f("cd_crackles_focal", "한쪽 폐 아래에 수포음", 2),
@@ -155,6 +159,7 @@ export const FINDINGS: FindingDef[] = [
   f("nr_asterixis", "손을 펴면 퍼덕떨림(asterixis)", 2),
   f("nr_inattention", "주의력 저하, 의식 수준이 오락가락", 2),
   f("nr_drowsy", "졸려 하나 깨우면 대답함", 1),
+  f("nr_hemiparesis_drowsy", "한쪽 마비와 함께 의식이 점점 처짐", 2),
   // ── 피부·사지 ──
   f("lb_normal", "피부와 사지 이상 없음", 0),
   f("lb_urticaria", "전신 두드러기, 입술과 혀가 부음", 2),
@@ -261,6 +266,7 @@ export const FINDINGS: FindingDef[] = [
   f("ct_cellulitis", "피하 지방 침윤, 고름집 없음", 2),
   f("ct_venous_clot", "정맥 안의 충만 결손(혈전)", 4),
   f("ct_pulm_edema", "간질 부종과 흉수", 2),
+  f("ct_ich", "뇌실질 안의 고음영 혈종", 4),
   // ── 미생물 ──
   f("cx_neg", "배양 음성(자라지 않음)", 0),
   f("cx_urine_ecoli", "대장균 — 세프트리악손 감수성", 4, { organism: "ecoli", gram: "gnr" }),
@@ -286,6 +292,8 @@ export const FINDINGS: FindingDef[] = [
   f("crs_vf", "모니터에 심실세동이 나타남", 2),
   f("crs_pulsus", "맥압이 좁아지고 숨 들이쉴 때 맥이 약해짐(기이맥)", 2),
   f("crs_airway_pressure", "기도 압력이 치솟고 한쪽 가슴이 움직이지 않음", 2),
+  f("crs_neuro_decline", "의식이 한 단계 더 떨어지고 동공 크기가 달라짐", 2),
+  f("crs_recurrent_embolus", "갑자기 숨이 더 차고 산소포화도가 한 번 더 떨어짐", 2),
   // ── 치료 반응 (core가 치료를 쓸 때 기록한다) ──
   f("rx_good", "뚜렷한 호전", 2),
   f("rx_partial", "부분적인 반응", 1),

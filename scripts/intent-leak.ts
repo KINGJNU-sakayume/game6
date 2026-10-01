@@ -21,7 +21,8 @@ function run(encId: string, disease: string, seed: string): { sigs: string[]; sh
   const shown: string[] = [];
   for (let t = 0; t < TURNS && s.phase === "combat"; t++) {
     const e = s.combat!.enemies[0]!;
-    if (e.cured) break;
+    // 경과 소견이 드러나면(예: 심실세동 단계) 그 뒤의 의도는 드러난 정보에 따라 달라도 된다
+    if (e.cured || e.observations.some((o) => o.channel === "course")) break;
     sigs.push(e.ai.planned[0]?.sig ?? "?");
     const v = visibleEnemyInfo(s, e.uid)!;
     shown.push(v.intents.map((i) => `${i.pressure}:${i.band}`).join("+"));
@@ -31,7 +32,7 @@ function run(encId: string, disease: string, seed: string): { sigs: string[]; sh
 }
 
 const rows: string[] = [];
-rows.push("| 내원 양상 | 후보 | 보이는 의도 칸 (모든 후보 공통) | 첫 의도 | 후보별 칸 충족 | 8턴 의도 순서 (시드 20개) |");
+rows.push("| 내원 양상 | 후보 | 보이는 의도 칸 (모든 후보 공통) | 첫 의도 | 후보별 칸 충족 | 8턴 의도 순서 (시드 20개, 경과 소견 전까지) |");
 rows.push("|---|---|---|---|---|---|");
 let bad = 0;
 for (const p of db().presentations) {
@@ -50,7 +51,8 @@ for (const p of db().presentations) {
     for (let k = 0; k < 20; k++) {
       const res = p.candidates.map((c) => run(enc.id, c.disease, `leak-${k}`));
       total += 1;
-      if (res.every((r) => JSON.stringify(r.sigs) === JSON.stringify(res[0]!.sigs))) same += 1;
+      const n = Math.min(...res.map((r) => r.sigs.length));
+      if (res.every((r) => JSON.stringify(r.sigs.slice(0, n)) === JSON.stringify(res[0]!.sigs.slice(0, n)))) same += 1;
     }
   }
   const ok = cover.every(Boolean) && same === total && !!script;

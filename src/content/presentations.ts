@@ -116,8 +116,15 @@ export const PRESENTATIONS: PresentationDef[] = [
     id: "p_focal_neuro",
     complaint: "편측 마비",
     vignette: "한쪽 팔다리에 힘이 빠지고 말이 어눌하다.",
-    candidates: [{ disease: "stroke", weight: 1 }],
+    candidates: [
+      { disease: "stroke", weight: 65 },
+      { disease: "ich", weight: 35 },
+    ],
+    burden: [62, 68],
     pressure: "neuro",
+    vitals: "vt_hypertensive",
+    course: basic("neuro"),
+    medical: { fidelity: "unverified", note: "v2.1: 뇌내출혈 추가. 갑작스러운 편측 마비에서 뇌경색과 뇌출혈은 증상만으로 가를 수 없고 비조영 CT가 결정한다. 혈전용해 전에 CT를 볼지가 실제 결정이 된다" },
   },
   {
     id: "p_dka",
@@ -186,9 +193,21 @@ export const PRESENTATIONS: PresentationDef[] = [
   {
     id: "p_palpitation",
     complaint: "두근거림",
-    vignette: "모니터 알람이 울린다. 맥박이 빠르고 불규칙하다.",
-    candidates: [{ disease: "af", weight: 1 }],
+    vignette: "모니터 알람이 울린다. 맥박이 140 가까이 빠르다.",
+    candidates: [
+      { disease: "af", weight: 65 },
+      { disease: "pe", weight: 35 },
+    ],
+    burden: [42, 48],
     pressure: "cardiac",
+    vitals: "vt_palp",
+    course: {
+      opening: ["cardiac:moderate"],
+      rules: [{ when: { all: [{ noCountdown: true }, { turnAtLeast: 2 }] }, sig: "complication:mild@4", once: true }],
+      weights: { "cardiac:moderate": 50, "hemodynamic:mild": 25, "worsening:mild": 25 },
+      noRepeat: ["worsening:mild"],
+    },
+    medical: { fidelity: "unverified", note: "v2.1: 폐색전증 추가. 수술 뒤 병동 환자의 새 빈맥은 심방세동과 폐색전증을 함께 감별한다(폐색전증이 심방세동을 부르기도 한다). 심전도·현장 초음파·D-dimer로 가른다. 둘 다 항응고가 예고(색전)를 막는다" },
   },
   {
     id: "p_sudden_dyspnea",
@@ -206,9 +225,21 @@ export const PRESENTATIONS: PresentationDef[] = [
   {
     id: "p_severe_abd",
     complaint: "심한 윗배 통증",
-    vignette: "등까지 뻗치는 통증으로 몸을 웅크리고 있다.",
-    candidates: [{ disease: "pancreatitis", weight: 1 }],
+    vignette: "명치가 찢어질 듯 아프다며 몸을 웅크리고 있다.",
+    candidates: [
+      { disease: "pancreatitis", weight: 70 },
+      { disease: "stemi", weight: 30 },
+    ],
+    burden: [80, 86],
     pressure: "pain",
+    vitals: "vt_epigastric",
+    course: {
+      opening: ["pain:moderate"],
+      rules: [{ when: { all: [{ noCountdown: true }, { turnAtLeast: 2 }] }, sig: "complication:mild@4", once: true }],
+      weights: { "pain:moderate": 45, "pain:mild": 25, "worsening:mild": 30 },
+      noRepeat: ["worsening:mild"],
+    },
+    medical: { fidelity: "unverified", note: "v2.1: ST분절 상승 심근경색 추가. 하벽 심근경색은 명치 통증·구토로 와서 췌장염·위장 질환으로 오인된다(놓치면 안 되는 감별). 심전도·트로포닌·리파아제로 가른다. 예고: 췌장 괴사 / 심실 부정맥" },
   },
   {
     id: "p_hematemesis",
@@ -263,9 +294,16 @@ export const PRESENTATIONS: PresentationDef[] = [
   {
     id: "p_bleeding",
     complaint: "출혈",
-    vignette: "주사 자리마다 피가 배어 나온다.",
-    candidates: [{ disease: "dic", weight: 1 }],
+    vignette: "간호사가 피가 멎지 않는다고 호출했다. 혈압이 떨어진다.",
+    candidates: [
+      { disease: "dic", weight: 60 },
+      { disease: "ugib", weight: 40 },
+    ],
+    burden: [58, 64],
     pressure: "bleeding",
+    vitals: "vt_bleeding",
+    course: basic("bleeding"),
+    medical: { fidelity: "unverified", note: "v2.1: 대량 상부위장관 출혈 추가. 중환자실 환자의 새 출혈은 패혈증의 DIC와 스트레스 궤양 출혈을 함께 감별한다. 응고 검사·혈소판·흑색변으로 가른다. 수혈은 둘 다에 듣고, 내시경은 위장관 출혈에만" },
   },
   {
     id: "p_obstructive_shock",
