@@ -33,6 +33,8 @@ export interface RunMetrics {
   strongReached: number;
   /** 작업 진단을 한 번 이상 바꾼 전투 */
   combatsWithRevision: number;
+  finalPressure: number;
+  lateCultures: number;
   /** 감별 대상이 둘 이상인 일반 전투: 검사 없이 끝낸 전투와 검사한 전투의 활력 손실 */
   blindLoss: number[];
   investigatedLoss: number[];
@@ -107,6 +109,8 @@ export function runWithMetrics(seed: string, choose: (s: GameState) => Action, m
     strongAfterOne: 0,
     strongReached: 0,
     combatsWithRevision: 0,
+    finalPressure: 0,
+    lateCultures: 0,
     blindLoss: [],
     investigatedLoss: [],
     stats: s.run.stats,
@@ -205,11 +209,13 @@ export function runWithMetrics(seed: string, choose: (s: GameState) => Action, m
   m.floors = s.run.stats.floorsClimbed;
   m.deathCause = s.run.stats.deathCause;
   m.stats = s.run.stats;
+  m.finalPressure = s.run.micro?.pressure ?? 0;
   return m;
 }
 
 function observeEvents(m: RunMetrics, before: GameState, after: GameState, events: GameEvent[]): void {
   for (const ev of events) {
+    if (ev.type === "micro_result" && ev.late) m.lateCultures += 1;
     if (ev.type === "card_played") {
       m.playedIds.add(ev.cardId);
       if (cardDef(ev.cardId).zone === "formulary") m.usedFormulary.add(ev.cardId);
@@ -263,6 +269,12 @@ export interface Aggregate {
   problemsRevisedPct: number;
   firstDxAccuracy: number;
   firstDxTurn: number;
+  act3TargetedPct: number;
+  act3Abx: number;
+  runsWithDeescalation: number;
+  deescalations: number;
+  meanPressure: number;
+  lateCultureResults: number;
   blindLoss: { mean: number; n: number };
   investigatedLoss: { mean: number; n: number };
 }
@@ -340,6 +352,12 @@ export function aggregate(runs: RunMetrics[]): Aggregate {
     problemsRevisedPct: st((s) => s.problemsRevised ?? 0) / Math.max(1, st((s) => s.commits)),
     firstDxAccuracy: st((s) => s.firstDxCorrect ?? 0) / Math.max(1, st((s) => s.firstDx ?? 0)),
     firstDxTurn: st((s) => s.firstDxTurnSum ?? 0) / Math.max(1, st((s) => s.firstDx ?? 0)),
+    act3TargetedPct: st((s) => s.act3AbxTargeted ?? 0) / Math.max(1, st((s) => (s.act3AbxTargeted ?? 0) + (s.act3AbxEmpiric ?? 0))),
+    act3Abx: st((s) => (s.act3AbxTargeted ?? 0) + (s.act3AbxEmpiric ?? 0)),
+    runsWithDeescalation: sum((r) => (r.stats.deescalations > 0 ? 1 : 0)),
+    deescalations: st((s) => s.deescalations),
+    meanPressure: sum((r) => r.finalPressure) / Math.max(1, runs.length),
+    lateCultureResults: sum((r) => r.lateCultures),
     blindLoss: { mean: mean(runs.flatMap((r) => r.blindLoss)), n: sum((r) => r.blindLoss.length) },
     investigatedLoss: { mean: mean(runs.flatMap((r) => r.investigatedLoss)), n: sum((r) => r.investigatedLoss.length) },
   };
@@ -369,7 +387,9 @@ export function formatAggregate(a: Aggregate, top = 25): string {
   lines.push(`검사 하나로 강력 의심에 이른 문제         ${pct(a.strongAfterOnePct)} (강력 의심에 이른 문제 ${pct(a.strongReachedPct)}, 감별 대상 둘 이상)`);
   lines.push(`검사 없이 끝낸 일반 전투 활력 손실       ${a.blindLoss.mean.toFixed(1)} (n=${a.blindLoss.n}) · 검사한 전투 ${a.investigatedLoss.mean.toFixed(1)} (n=${a.investigatedLoss.n})`);
   lines.push(`항생제: 경험적 ${pct(a.empiricPct)} / 표적 ${pct(1 - a.empiricPct)} (투여 ${a.abxUses})`);
-  lines.push(`범위 축소 / 전투                        ${a.deescalationsPerCombat.toFixed(2)}`);
+  lines.push(`범위 축소 / 전투                        ${a.deescalationsPerCombat.toFixed(2)} (범위 축소 ${a.deescalations}회, 범위 축소가 있던 런 ${a.runsWithDeescalation}/${a.n})`);
+  lines.push(`3막 감염 전투 항생제: 표적 ${pct(a.act3TargetedPct)} (투여 ${a.act3Abx})`);
+  lines.push(`다음 전투에서 도착한 배양 결과 / 런       ${(a.lateCultureResults / Math.max(1, a.n)).toFixed(2)} · 런 끝 선택 압력 평균 ${a.meanPressure.toFixed(1)}`);
   lines.push(`처방 반납 / 전투                        ${a.returnsPerCombat.toFixed(2)}`);
   lines.push(`기대 반응 없음(치료 실패 소견) / 전투     ${a.noResponsePerCombat.toFixed(2)}`);
   lines.push(`선택지 분포 (상위 ${top}):`);

@@ -930,8 +930,32 @@ export interface RunStats {
   abxEmpiric: number;
   abxTargeted: number;
   deescalations: number;
+  /** 3막 감염 전투의 항생제 투여 (경험적·표적) */
+  act3AbxEmpiric?: number;
+  act3AbxTargeted?: number;
   returns: number;
   noResponse: number;
+}
+
+/** 미생물 기록의 배양 한 건 (환자의 차트: 전투가 끝나도 남는다) */
+export interface MicroEntry {
+  channel: ChannelId;
+  finding: FindingId;
+  organism?: OrganismId;
+  /** 어느 문제에서 받은 검체인가 (플레이어가 본 이름: 주호소 또는 확진명) */
+  source: string;
+  act: number;
+  floor: number;
+}
+
+/** 런 단위 미생물 기록 (v2.1). 모두 플레이어가 아는 환자 이력이다 */
+export interface MicroRecord {
+  /** 아직 배양 중인 검체: 다음 전투에서 결과가 나온다 */
+  pending: MicroEntry[];
+  /** 나온 결과: 원인균과 감수성은 런 끝까지 차트에 남는다 */
+  results: MicroEntry[];
+  /** 선택 압력: 광범위 항생제와 원인균을 모르고 쓴 항생제가 쌓는다. 이후 감염의 내성균 확률을 올린다 */
+  pressure: number;
 }
 
 export interface RunState {
@@ -957,6 +981,8 @@ export interface RunState {
   stats: RunStats;
   restDone?: boolean;
   seenEvents: EventId[];
+  /** v2.1 미생물 기록 (이전 저장에는 없을 수 있다) */
+  micro?: MicroRecord;
 }
 
 export type Phase = "map" | "combat" | "reward" | "shop" | "rest" | "event" | "boss_relic" | "gameover" | "victory";
@@ -1047,7 +1073,9 @@ export type GameEvent =
   | { type: "resistance_up"; target: Uid; tag: Tag; stacks: number }
   | { type: "dur_blocked"; ruleId: string }
   | { type: "act_changed"; act: number }
-  | { type: "reward_offered" };
+  | { type: "reward_offered" }
+  | { type: "micro_result"; channel: ChannelId; finding: FindingId; source: string; late: boolean }
+  | { type: "selection_pressure"; delta: number; total: number };
 
 /** 치료 반응의 분류: 좋음(특효·우수) · 부분(보통·저하) · 없음(무효·적응증 아님) · 악화(금기) */
 export type ResponseClass = "good" | "partial" | "none" | "worse";

@@ -3,6 +3,7 @@ import { cardDef, db, diseaseDef, encounterDef, eventDef, hasCard, presentationD
 import { cardTextbook } from "./textbook";
 import { variantDef } from "./disease";
 import { startCombat } from "./combat";
+import { carryOverCultures } from "./micro";
 import { actFloors, generateMap } from "./map";
 import { deriveStream, pickOne, pickWeighted, randInt, randRange, shuffleInPlace } from "./rng";
 import { emit, hasRelic, modifierValue, newUid } from "./util";
@@ -366,6 +367,8 @@ export function finishCombatVictory(state: GameState): void {
     return row;
   });
   emit({ type: "combat_won" });
+  // 아직 배양 중인 검체는 계속 자란다 (결과는 다음 전투에서)
+  carryOverCultures(state);
   state.combat = undefined;
   state.pending = undefined;
   if (kind === "boss" && state.run.act === 3) {

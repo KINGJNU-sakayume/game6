@@ -1,6 +1,6 @@
 // 오버레이: 대기 선택, 처방 목록, 더미 보기, 증례집, 설정, 진료 안내
 import React from "react";
-import { cardDef, categoryName, db, diseaseDef, textbookSummary } from "../../core";
+import { cardDef, categoryName, db, diseaseDef, gradeLabel, microView, textbookSummary } from "../../core";
 import type { CardInstance, GameState } from "../../core";
 import { controller } from "../controller";
 import type { Snapshot } from "../controller";
@@ -178,6 +178,57 @@ export function CasebookOverlay({ state, onClose }: { state: GameState; onClose:
             </div>
           );
         })}
+      </div>
+    </Sheet>
+  );
+}
+
+/** 미생물 기록 (v2.1): 런 내내 남는 배양 결과·감수성과 선택 압력 */
+export function MicroOverlay({ state, onClose }: { state: GameState; onClose: () => void }) {
+  const m = microView(state);
+  return (
+    <Sheet title="미생물 기록" sub="이번 입원에서 받은 배양과 결과. 전투가 끝나도 배양은 계속 자라고, 결과는 다음 전투에서 온다." onClose={onClose} wide>
+      <div className="micro">
+        <div className="micro-pressure">
+          <b>선택 압력 {m.pressure}</b>
+          <span>
+            광범위 항생제(+2)와 원인균을 모르고 쓴 항생제(+1)가 쌓고, 원인균을 확인한 뒤 범위 축소(−2)가 줄인다. 이후 감염이 내성균(ESBL·MRSA·녹농균)일 가능성 +{m.pressurePct}%.
+          </span>
+          {m.colonized.length > 0 && <span className="micro-col">차트의 균: {m.colonized.join(", ")} — 같은 균의 이후 감염 가능성이 오른다</span>}
+        </div>
+        {m.pending.length > 0 && (
+          <div className="micro-sec">
+            <h4>배양 중</h4>
+            {m.pending.map((p, i) => (
+              <div key={i} className="micro-row is-pending">
+                <span className="micro-spec">{p.specimen}</span>
+                <span className="micro-src">{p.source} · {p.where}</span>
+                <span className="micro-text">다음 전투에서 결과</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="micro-sec">
+          <h4>결과</h4>
+          {m.results.length === 0 && <div className="micro-empty">아직 나온 배양 결과가 없다</div>}
+          {m.results.map((r, i) => (
+            <div key={i} className="micro-row">
+              <span className="micro-spec">{r.specimen}</span>
+              <span className="micro-src">{r.source} · {r.where}</span>
+              <span className="micro-text">{r.text}</span>
+              {r.antibiogram && (
+                <span className="abx-grid micro-abx">
+                  {r.antibiogram.map((c) => (
+                    <span key={c.cardId} className={`abx-cell g-${c.grade === "?" ? "unknown" : c.grade}`} title={gradeLabel(c.grade)}>
+                      {c.short}
+                      <b>{gradeLabel(c.grade)}</b>
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </Sheet>
   );

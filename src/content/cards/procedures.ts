@@ -99,7 +99,7 @@ export const PROCEDURE_CARDS = [
           requiresText: "투여 중인 약이 없다",
         }),
         opt("one", "하나만 중단", "상호작용·부작용의 원인 하나를 골라 끊는다. 카드 1장", [{ op: "stop_drug_choice" }], { requires: { activeDrugAny: true }, requiresText: "투여 중인 약이 없다" }),
-        opt("deescalate", "범위 축소", "광범위 항생제 중단. 원인균을 알면 장내세균 교란 정리와 카드 1장", [{ op: "deescalate" }], {
+        opt("deescalate", "범위 축소", "광범위 항생제 중단. 원인균을 알면 장내세균 교란 정리, 카드 1장, 오더 +1, 선택 압력 −2", [{ op: "deescalate" }], {
           requires: { activeDrugBroad: true },
           requiresText: "광범위 항생제를 쓰고 있지 않다",
         }),

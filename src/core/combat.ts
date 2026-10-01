@@ -6,6 +6,7 @@ import { deriveStream, pickWeighted, randInt, randRange, shuffleInPlace } from "
 import { enqueueBack, enqueueFront, phaseOp, runQueue } from "./queue";
 import { expectedFindings, observe, scoreDifferential } from "./evidence";
 import { resolveOption } from "./choice";
+import { deliverPendingCultures, variantWeights } from "./micro";
 import { isTreatmentCard } from "./textbook";
 import { fire } from "./triggers";
 import { emit, findEnemy, hasRelic, livingEnemies, log, modifierValue } from "./util";
@@ -34,7 +35,8 @@ function createEnemy(state: GameState, problem: EncounterDef["problems"][number]
   let sev = randRange(rng, range[0], range[1]);
   if (problem.hpPct) sev = Math.max(1, Math.floor((sev * problem.hpPct) / 100));
   let variantId: string | undefined;
-  if (def.variants?.length) variantId = pickWeighted(rng, def.variants.map((v) => [v.id, v.weight] as const));
+  // v2.1: 선택 압력과 앞선 배양(집락)이 내성균 변이 쪽으로 기울인다 (플레이어가 아는 환자 이력)
+  if (def.variants?.length) variantId = pickWeighted(rng, variantWeights(state, def));
   if (force?.variant) variantId = force.variant;
   const res: Record<string, number> = {};
   for (const [k, v] of Object.entries(def.acquiredResistance?.start ?? {})) if (v) res[k] = v;
@@ -131,6 +133,8 @@ export function startCombat(state: GameState, encounterId: string, kind: CombatS
     for (const ch of pres.visible ?? ["vitals"]) observe(state, e, ch, true);
   });
   for (const e of c.enemies) planIntents(state, e);
+  // 지난 전투에서 보낸 배양의 결과가 도착한다
+  deliverPendingCultures(state);
   if (state.run.flags.fatigue) {
     c.patientStatuses.push({ id: "fatigue", stacks: 1 });
     state.run.flags.fatigue = 0;

@@ -3,6 +3,7 @@
 // 진실을 읽는 것은 actualFinding 하나뿐이며, 그 결과는 곧바로 플레이어에게 공개되는 소견이다.
 import { cardDef, channelDef, db, diseaseDef, findingDef, hasFinding, organismDef, presentationDef } from "./registry";
 import { allMoves, phaseDef, variantDef } from "./disease";
+import { recordCulture } from "./micro";
 import { textbook } from "./textbook";
 import { fire } from "./triggers";
 import { emit, log } from "./util";
@@ -316,6 +317,7 @@ export function observe(state: GameState, enemy: EnemyState, channel: ChannelId,
   if (channel === "vitals" && presentationDef(enemy.presentationId).vitals) obs.neutral = true;
   const changes = recordObservation(state, enemy, obs, text, silent);
   if (state.combat && !silent) log(state.combat, "diag", `${channelDef(channel).nameKo}: ${text}${changeText(changes)}`);
+  if (!silent) recordCulture(state, enemy, channel, finding);
   return true;
 }
 

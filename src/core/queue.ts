@@ -10,6 +10,7 @@ import { addCardTo, addGeneratedCard, drawCards, exhaustInstance, matchesFilter,
 import { intentLabel, moveForSig, planIntents, replanAll, scriptFor } from "./enemy-ai";
 import { fire } from "./triggers";
 import { pickOne } from "./rng";
+import { PRESSURE_DEESCALATE, carryOverCultures, changePressure } from "./micro";
 import { drugTagActive, evalCondition, evalValue, resolveTargets } from "./values";
 import { addStatus, clamp, emit, findEnemy, hasRelic, livingEnemies, log, modifierValue, removeStatus, statusStacks } from "./util";
 import type { CardInstance, DelayedEffect, EffectCtx, EffectOp, EnemyState, GameState, QueuedEffect, TargetSel, TurnPhase } from "./types";
@@ -73,6 +74,8 @@ function cureEnemy(state: GameState, enemy: EnemyState): void {
   enemy.cured = true;
   enemy.countdowns = [];
   enemy.stability = 0;
+  // 보낸 배양은 문제가 나아도 계속 자란다: 미생물 기록으로 옮겨 다음 전투에서 결과를 받는다
+  carryOverCultures(state, enemy.uid);
   c.delayed = c.delayed.filter((d) => d.ctx.targetUid !== enemy.uid);
   state.run.stats.diseasesCured.push(enemy.diseaseId);
   emit({ type: "enemy_cured", target: enemy.uid, diseaseId: enemy.diseaseId });
@@ -594,8 +597,10 @@ function execute(state: GameState, item: QueuedEffect): void {
       }
       if (c.enemies.some((e) => !e.cured && e.organismKnown)) {
         state.run.stats.deescalations += 1;
-        log(c, "diag", "범위 축소: 원인균에 맞춘 치료로 바꾼다");
-        enqueueFront(state, [{ op: "exhaust_cards", from: ["hand", "draw", "discard"], filter: { ids: ["dysbiosis"] }, amount: "all" }, { op: "draw", amount: 1 }], ctx);
+        log(c, "diag", "범위 축소: 원인균에 맞춘 치료로 바꾼다 (오더 +1, 선택 압력 −2)");
+        // v2.1: 범위 축소가 이번 전투(오더·카드·장내세균 교란 정리)와 런(선택 압력) 모두에 이득이 되게
+        changePressure(state, PRESSURE_DEESCALATE, "범위 축소");
+        enqueueFront(state, [{ op: "exhaust_cards", from: ["hand", "draw", "discard"], filter: { ids: ["dysbiosis"] }, amount: "all" }, { op: "draw", amount: 1 }, { op: "gain_orders", amount: 1 }], ctx);
       } else log(c, "warn", "원인균을 모른 채 광범위 항생제를 끊었다");
       return;
     }

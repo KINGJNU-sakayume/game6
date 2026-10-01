@@ -9,6 +9,7 @@ import { BAND_LABEL, BAND_RANGE, PRESSURE_LABEL, bandOf, intentParts, moveSignat
 import { costOf } from "./cards";
 import { canPlay, commitCheck, returnCheck } from "./combat";
 import { combinePct, findEnemy, statusStacks } from "./util";
+import { PRESSURE_CAP_PCT, PRESSURE_PCT } from "./micro";
 import type {
   ArtRegion,
   DamagePreview,
@@ -95,6 +96,8 @@ export interface OrganismView {
   gram?: string;
   candidates: string[];
   antibiogram?: AbxCell[];
+  /** 환자 차트(앞선 배양)에 있는 균 중 이번 원인균 후보에 드는 것 */
+  chart?: string[];
 }
 
 export interface EnemyView {
@@ -187,6 +190,8 @@ function organismView(state: GameState, enemy: EnemyState): OrganismView {
     }
     if (ok) view.candidates.push(organismDef(org)?.nameKo ?? org);
   }
+  const chart = [...new Set((state.run.micro?.results ?? []).map((r) => r.organism).filter((o): o is string => !!o && orgs.has(o)))];
+  if (chart.length) view.chart = chart.map((o) => organismDef(o)?.nameKo ?? o);
   return view;
 }
 
@@ -471,3 +476,49 @@ export function gradeLabel(g: Grade | "generic" | "not_indicated" | "varies" | "
 }
 
 export { resistanceStacksFor, statusStacks };
+
+// ───────────────────────── 미생물 기록 (v2.1) ─────────────────────────
+
+export interface MicroEntryView {
+  specimen: string;
+  source: string;
+  where: string;
+  text: string;
+  organism?: string;
+  antibiogram?: AbxCell[];
+}
+
+export interface MicroView {
+  pressure: number;
+  /** 선택 압력이 이후 감염의 내성균(ESBL·MRSA·녹농균) 변이 가중치에 더하는 % */
+  pressurePct: number;
+  pending: { specimen: string; source: string; where: string }[];
+  results: MicroEntryView[];
+  /** 차트에 있는 원인균 (집락): 같은 균의 이후 감염 가능성이 오른다 */
+  colonized: string[];
+}
+
+const PLACE_KO: Record<number, string> = { 1: "응급실", 2: "병동", 3: "중환자실" };
+
+/** 환자 차트의 미생물 기록. 모두 플레이어가 이미 본 결과와 자기 항생제 이력이다 */
+export function microView(state: GameState): MicroView {
+  const m = state.run.micro ?? { pending: [], results: [], pressure: 0 };
+  const where = (e: { act: number; floor: number }) => `${e.act}막 ${PLACE_KO[e.act] ?? ""} ${e.floor}층`;
+  const orgs = new Set<string>();
+  const results = m.results.map((r) => {
+    const v: MicroEntryView = { specimen: channelDef(r.channel).nameKo, source: r.source, where: where(r), text: findingDef(r.finding).text };
+    if (r.organism) {
+      orgs.add(r.organism);
+      v.organism = organismDef(r.organism)?.nameKo ?? r.organism;
+      v.antibiogram = ABX_SHORT.map(([id, short]) => ({ cardId: id, short, grade: cardDef(id).drug?.spectrum?.[r.organism!] ?? "immune" }));
+    }
+    return v;
+  });
+  return {
+    pressure: m.pressure,
+    pressurePct: Math.min(PRESSURE_CAP_PCT, m.pressure * PRESSURE_PCT),
+    pending: m.pending.map((p) => ({ specimen: channelDef(p.channel).nameKo, source: p.source, where: where(p) })),
+    results,
+    colonized: [...orgs].map((o) => organismDef(o)?.nameKo ?? o),
+  };
+}

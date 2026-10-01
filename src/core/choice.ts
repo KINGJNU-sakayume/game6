@@ -1,7 +1,7 @@
 // 임상 결정: 선택지(choose_option), 처방집 발견(discover), 협진, 시술 결정.
 // 선택지를 만드는 모든 함수는 플레이어가 아는 정보(감별 목록, 소견, 작업 진단, 환자 상태, 처방집)만 쓴다.
 // 실제 질병(enemy.diseaseId, 변이)은 읽지 않는다. tests/info-leak.test.ts가 이를 검사한다.
-import { cardDef, channelDef, consultDef, db, diseaseDef, interactionRules, tagDef } from "./registry";
+import { cardDef, channelDef, consultDef, db, diseaseDef, findingDef, hasFinding, interactionRules, organismDef, tagDef } from "./registry";
 import { LEVEL_LABEL, LEVEL_RANK, channelHint, isObserved, liveHypotheses, pendingChannels, scoreDifferential } from "./evidence";
 import { allTraits, cardTextbook, isTreatmentCard } from "./textbook";
 import { evalCondition } from "./values";
@@ -157,6 +157,15 @@ export function resolveOption(state: GameState, optionId: string, enqueueFront: 
 
 const VALUE: Record<string, number> = { key: 4, weak: 3, normal: 2, resistant: 1, immune: 0, not_indicated: 0, harmful: -2, generic: 0 };
 
+/** 배양으로 확인한 원인균 (플레이어가 본 배양 소견에서 읽는다) */
+export function knownOrganism(enemy: EnemyState): string | undefined {
+  for (const o of enemy.observations) {
+    const f = hasFinding(o.finding) ? findingDef(o.finding) : undefined;
+    if (f?.organism && f.organism !== "virus") return f.organism;
+  }
+  return undefined;
+}
+
 /** 처방집 항목 (같은 카드는 하나, 업그레이드 우선) */
 export function formularyItems(state: GameState, pool: "drug" | "procedure"): CardInstance[] {
   const out = new Map<string, CardInstance>();
@@ -262,15 +271,20 @@ export function discoverDefs(state: GameState, enemy: EnemyState | undefined, po
   items.forEach((ci, idx) => {
     const def = cardDef(ci.cardId, ci.upgraded);
     const treat = isTreatmentCard(def) && (def.tags.some((t) => tagDef(t)?.kind === "therapeutic") || !!def.drug?.spectrum);
+    // 배양으로 원인균을 확인했으면(공개된 소견) 항생제는 그 균의 감수성으로 본다
+    const known = def.drug?.spectrum && enemy?.organismKnown ? knownOrganism(enemy) : undefined;
+    const knownVal = known ? VALUE[def.drug!.spectrum![known] ?? "immune"]! - (def.tags.includes("broad_spectrum") ? 1 : 0) : undefined;
     const vals = live.map((h) => {
       if (!treat) return 0;
+      if (knownVal !== undefined) return knownVal;
       const tb = cardTextbook(h.diseaseId, def);
       if (tb.generic) return 0;
       // 원인균에 따라 달라지면 최선과 최악의 중간으로 본다
       return tb.varies ? (VALUE[tb.best]! + VALUE[tb.worst]!) / 2 : VALUE[tb.best]!;
     });
     let wdVal = 0;
-    if (wd && treat) {
+    if (knownVal !== undefined) wdVal = knownVal;
+    else if (wd && treat) {
       const tb = cardTextbook(wd, def);
       if (tb.harmful && !tb.varies) return; // 작업 진단에 금기인 치료는 내놓지 않는다
       wdVal = tb.generic ? 0 : tb.varies ? (VALUE[tb.best]! + VALUE[tb.worst]!) / 2 : VALUE[tb.best]!;
@@ -318,7 +332,12 @@ export function discoverDefs(state: GameState, enemy: EnemyState | undefined, po
     const r = [...risk, ...hazardText(state, x.def)];
     const se = sideEffectText(x.def);
     if (se) r.push(se);
-    const lead = wd && x.wdVal >= 3 ? `작업 진단(${diseaseDef(wd).nameKo})의 1차 치료. ` : "";
+    const org = x.def.drug?.spectrum && enemy?.organismKnown ? knownOrganism(enemy) : undefined;
+    const lead = org
+      ? `배양 감수성(${organismDef(org)?.nameKo ?? org}): ${GRADE_SHORT[x.def.drug!.spectrum![org] ?? "immune"]}${x.def.tags.includes("broad_spectrum") ? " · 광범위" : ""}. `
+      : wd && x.wdVal >= 3
+        ? `작업 진단(${diseaseDef(wd).nameKo})의 1차 치료. `
+        : "";
     const manage = x.manage > 0 ? "부작용·환자 상태를 정리한다. " : "";
     const o: OptionDef = {
       id: x.ci.cardId,
