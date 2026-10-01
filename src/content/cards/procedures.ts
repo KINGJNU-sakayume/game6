@@ -222,6 +222,7 @@ export const PROCEDURE_CARDS = [
     effects: [dmg(12)],
     upgrade: { effects: [dmg(16)] },
     flavor: "고름은 빼고, 오염된 관은 뽑고, 염증난 충수는 뗀다.",
+    medical: { fidelity: "unverified", note: "v2.0 신규 결정적 시술. 확인 검사 CT. 충수염·봉와직염 농양·카테터 관련 감염·패혈증 감염원에 쓴다" },
   },
   {
     id: "defibrillation",
@@ -238,6 +239,7 @@ export const PROCEDURE_CARDS = [
     effects: [dmg(20)],
     upgrade: { effects: [dmg(26)] },
     flavor: "\"모두 물러나세요.\" 맥박이 있는 리듬에는 쓰지 않는다.",
+    medical: { fidelity: "unverified", note: "v2.0 신규 결정적 시술. 확인 검사 심전도. 심실세동에 특효, 심방세동에는 심율동 전환으로 통합. 맥박이 있는 동리듬에 비동기 충격은 해롭다" },
   },
   {
     id: "intubation",
@@ -253,6 +255,7 @@ export const PROCEDURE_CARDS = [
     effects: [stab(12), clear("hypoxia"), dmg(8)],
     upgrade: { effects: [stab(16), clear("hypoxia"), dmg(12)] },
     flavor: "폐 보호 환기. 긴장성 기흉과 심장 눌림증에서는 양압이 독이 된다.",
+    medical: { fidelity: "unverified", note: "v2.0 신규 결정적 시술. 확인 검사 동맥혈 가스. 호흡 부전·ARDS(폐 보호 환기)에 쓴다. 긴장성 기흉·심장 눌림증에는 양압이 해롭다" },
   },
   {
     id: "chest_tube",
@@ -268,6 +271,7 @@ export const PROCEDURE_CARDS = [
     effects: [dmg(16), stab(4)],
     upgrade: { effects: [dmg(22), stab(4)] },
     flavor: "제5늑간, 중액와선. 긴장성 기흉은 영상을 기다리지 않는다.",
+    medical: { fidelity: "unverified", note: "v2.0 신규 결정적 시술. 확인 검사 현장 초음파. 긴장성 기흉은 실제로는 바늘 감압 후 흉관, 카드는 하나로 통합" },
   },
   {
     id: "transfusion",
@@ -284,6 +288,7 @@ export const PROCEDURE_CARDS = [
     effects: [dmg(12), heal(5)],
     upgrade: { effects: [dmg(12), heal(8)] },
     flavor: "혈액형과 교차 시험을 두 번 확인한다.",
+    medical: { fidelity: "unverified", note: "v2.0 신규 결정적 시술. 확인 검사 혈구 검사. 상부위장관 출혈·DIC(혈액제제)·뇌내출혈 항응고 역전(PCC 대신)에 통합해서 쓴다" },
   },
   {
     id: "pericardiocentesis",
@@ -299,6 +304,7 @@ export const PROCEDURE_CARDS = [
     effects: [dmg(18)],
     upgrade: { effects: [dmg(24)] },
     flavor: "검상돌기 아래, 왼쪽 어깨를 향해. 초음파로 보고 찌른다.",
+    medical: { fidelity: "unverified", note: "v2.0 신규 결정적 시술. 확인 검사 현장 초음파. 심장 눌림증의 결정적 치료" },
   },
   {
     id: "endoscopy",
@@ -314,6 +320,7 @@ export const PROCEDURE_CARDS = [
     effects: [dmg(18), purge(["bleeding"]), stab(6)],
     upgrade: { effects: [dmg(24), purge(["bleeding"]), stab(6)] },
     flavor: "클립 두 개, 에피네프린 국소 주사.",
+    medical: { fidelity: "unverified", note: "v2.0 신규 결정적 시술. 확인 검사 혈구 검사. 소화성 궤양 출혈의 지혈" },
   },
   {
     id: "dialysis",
@@ -330,6 +337,7 @@ export const PROCEDURE_CARDS = [
     upgrade: { cost: 1 },
     upgradeText: "비용 1",
     flavor: "고칼륨, 산증, 체액 과다, 요독. 투석되는 약은 함께 빠진다.",
+    medical: { fidelity: "unverified", note: "v2.0 신규 결정적 시술. 확인 검사 화학 검사. 고칼륨·산증·체액 과다·요독에 시행" },
   },
   {
     id: "revascularization",
@@ -345,5 +353,6 @@ export const PROCEDURE_CARDS = [
     effects: [dmg(24), stab(8)],
     upgrade: { effects: [dmg(32), stab(8)] },
     flavor: "관상동맥 중재술, 뇌혈관 혈전 제거술. 시간이 곧 조직이다.",
+    medical: { fidelity: "unverified", note: "v2.0 신규 결정적 시술. 확인 검사 심전도. STEMI의 1차 PCI, 뇌경색의 혈전 제거술을 한 카드로 통합" },
   },
 ] satisfies CardDef[];

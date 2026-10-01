@@ -48,7 +48,7 @@ export const ACT3_DISEASES = [
     ai: { weights: { sputum: 45, hypoxia: 30, inflame: 25 }, noRepeat: ["inflame"] },
     art: { region: "chest", lesion: [0.64, 0.62, 0.12] },
     passiveText: ["병원 획득 균: 획득 내성이 2씩 쌓이고, 베타락탐·퀴놀론 내성 1을 안고 시작한다."],
-    medical: { fidelity: "simplified", note: "병원 획득 균의 다제내성" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: simplified). 병원 획득 균의 다제내성" },
   },
   {
     id: "aki",
@@ -84,7 +84,7 @@ export const ACT3_DISEASES = [
     ],
     ai: { weights: { uremia: 45, hyperkalemia: 30, overload: 25 }, noRepeat: ["hyperkalemia"] },
     art: { region: "pelvis", lesion: [0.5, 0.4, 0.15] },
-    medical: { fidelity: "simplified", note: "투석은 고칼륨혈증·산증·체액 과다·요독에 시행. 이뇨제는 신기능 회복을 돕지 않는다. 수액은 혈액량이 부족할 때만" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: simplified). 투석은 고칼륨혈증·산증·체액 과다·요독에 시행. 이뇨제는 신기능 회복을 돕지 않는다. 수액은 혈액량이 부족할 때만" },
   },
   {
     id: "ards",
@@ -117,7 +117,7 @@ export const ACT3_DISEASES = [
     ],
     ai: { weights: { alveolar: 45, refractory: 35, fibrosis: 20 }, noRepeat: ["fibrosis"] },
     art: { region: "chest", lesion: [0.5, 0.56, 0.28] },
-    medical: { fidelity: "simplified", note: "폐 보호 환기와 보수적 수액 전략. 수액 금기는 과장이나 방향은 맞다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: simplified). 폐 보호 환기와 보수적 수액 전략. 수액 금기는 과장이나 방향은 맞다" },
   },
   {
     id: "dic",
@@ -153,7 +153,7 @@ export const ACT3_DISEASES = [
     ],
     ai: { weights: { petechiae: 35, consumption: 25, microthrombi: 40 }, noRepeat: ["consumption"] },
     art: { region: "body", lesion: [0.5, 0.5, 0.32] },
-    medical: { fidelity: "simplified", note: "원인 치료와 혈액제제 보충. 헤파린은 혈전 우세형에서 제한적으로 쓴다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: simplified). 원인 치료와 혈액제제 보충. 헤파린은 혈전 우세형에서 제한적으로 쓴다" },
   },
   {
     id: "clabsi",
@@ -190,7 +190,7 @@ export const ACT3_DISEASES = [
     ],
     ai: { weights: { bacteremia: 40, rigors: 35, biofilm: 25 }, noRepeat: ["biofilm"] },
     art: { region: "chest", lesion: [0.3, 0.24, 0.08] },
-    medical: { fidelity: "accurate", note: "황색포도알균 균혈증은 카테터 제거가 필수. MSSA는 베타락탐이 반코마이신보다 낫다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). 황색포도알균 균혈증은 카테터 제거가 필수. MSSA는 베타락탐이 반코마이신보다 낫다" },
   },
   {
     id: "tamponade",
@@ -230,7 +230,7 @@ export const ACT3_DISEASES = [
       noRepeat: ["jvd"],
     },
     art: { region: "chest", lesion: [0.53, 0.52, 0.17] },
-    medical: { fidelity: "accurate", note: "Beck 삼징. 양압 환기는 정맥 환류를 줄여 허탈을 부른다. 수액은 일시적으로 돕는다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). Beck 삼징. 양압 환기는 정맥 환류를 줄여 허탈을 부른다. 수액은 일시적으로 돕는다" },
   },
   {
     id: "tension_ptx",
@@ -266,7 +266,7 @@ export const ACT3_DISEASES = [
     ],
     ai: { weights: { pressure: 30, shift: 40, failure: 30 }, noRepeat: ["pressure"] },
     art: { region: "chest", lesion: [0.66, 0.42, 0.2] },
-    medical: { fidelity: "accurate", note: "임상 진단 후 즉시 감압한다. 영상을 기다리지 않는다. 양압 환기는 악화시킨다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). 임상 진단 후 즉시 감압한다. 영상을 기다리지 않는다. 양압 환기는 악화시킨다" },
   },
   {
     id: "septic_shock",
@@ -328,6 +328,6 @@ export const ACT3_DISEASES = [
     ],
     art: { region: "body", lesion: [0.5, 0.45, 0.36] },
     passiveText: ["질병 부담이 절반 이하로 떨어지면 패혈성 쇼크로 넘어가고, 환자에게 저혈압 2를 건다."],
-    medical: { fidelity: "accurate", note: "배양 후 경험적 광범위 항생제, 원인균 확인 후 범위 축소. 노르에피네프린이 1차 승압제. 불응성 쇼크에 스테로이드" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). 배양 후 경험적 광범위 항생제, 원인균 확인 후 범위 축소. 노르에피네프린이 1차 승압제. 불응성 쇼크에 스테로이드" },
   },
 ] satisfies DiseaseDef[];

@@ -84,7 +84,7 @@ export const ACT2_DISEASES = [
     ai: { opening: ["embolus_warning"], weights: { swelling: 60, clot_growth: 40 }, noRepeat: ["clot_growth"] },
     art: { region: "leg", lesion: [0.6, 0.7, 0.08] },
     passiveText: ["색전은 항응고제가 투여 중이면 절반. 항응고가 들으면 예고가 사라진다."],
-    medical: { fidelity: "accurate", note: "항응고가 1차. 단순 DVT에 혈전용해는 권고되지 않는다. 항혈소판제는 치료가 아니다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). 항응고가 1차. 단순 DVT에 혈전용해는 권고되지 않는다. 항혈소판제는 치료가 아니다" },
   },
   {
     id: "chf",
@@ -122,7 +122,7 @@ export const ACT2_DISEASES = [
     ],
     ai: { weights: { pulmonary_edema: 40, congestion: 30, dyspnea: 30 }, noRepeat: ["congestion"] },
     art: { region: "chest", lesion: [0.5, 0.62, 0.22] },
-    medical: { fidelity: "accurate", note: "급성 악화기의 수액과 β차단제 신규 시작은 해롭다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). 급성 악화기의 수액과 β차단제 신규 시작은 해롭다" },
   },
   {
     id: "he",
@@ -156,7 +156,7 @@ export const ACT2_DISEASES = [
     ],
     ai: { weights: { obtundation: 35, asterixis: 45, ammonia: 20 }, noRepeat: ["obtundation", "ammonia"] },
     art: { region: "head", lesion: [0.5, 0.42, 0.22] },
-    medical: { fidelity: "accurate", note: "벤조디아제핀·오피오이드는 간성뇌증을 유발·악화시킨다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). 벤조디아제핀·오피오이드는 간성뇌증을 유발·악화시킨다" },
   },
   {
     id: "delirium",
@@ -184,7 +184,7 @@ export const ACT2_DISEASES = [
     ],
     ai: { weights: { night_agitation: 40, inattention: 25, wandering: 35 }, noRepeat: ["inattention"] },
     art: { region: "head", lesion: [0.5, 0.36, 0.18] },
-    medical: { fidelity: "simplified", note: "항정신병제는 초조 조절용이며 섬망 기간 단축 근거는 약하다. 벤조디아제핀은 알코올 금단 외에는 악화 요인" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: simplified). 항정신병제는 초조 조절용이며 섬망 기간 단축 근거는 약하다. 벤조디아제핀은 알코올 금단 외에는 악화 요인" },
   },
   {
     id: "cdi",
@@ -222,7 +222,7 @@ export const ACT2_DISEASES = [
     ai: { weights: { watery: 40, toxin: 35, colitis: 25 }, noRepeat: ["colitis"] },
     art: { region: "abdomen", lesion: [0.5, 0.68, 0.18] },
     passiveText: ["C. diff 위험 약물(광범위 항생제, 세프트리악손, 퀴놀론, PPI)이 투여될 때마다 악화 +2."],
-    medical: { fidelity: "simplified", note: "현재 1차는 피닥소마이신 또는 경구 반코마이신(정맥 투여는 대장에 도달하지 않음, 카드는 경로 구분 생략). 원인 항생제·PPI 지속은 악화 요인" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: simplified). 현재 1차는 피닥소마이신 또는 경구 반코마이신(정맥 투여는 대장에 도달하지 않음, 카드는 경로 구분 생략). 원인 항생제·PPI 지속은 악화 요인" },
   },
   {
     id: "af",
@@ -262,7 +262,7 @@ export const ACT2_DISEASES = [
     },
     art: { region: "chest", lesion: [0.58, 0.46, 0.09] },
     passiveText: ["색전성 뇌졸중은 항응고제가 투여 중이면 절반."],
-    medical: { fidelity: "simplified", note: "박동수 조절이 1차, 불안정하면 전기적 심율동 전환(카드는 제세동으로 통합). 항응고는 뇌졸중 예방" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: simplified). 박동수 조절이 1차, 불안정하면 전기적 심율동 전환(카드는 제세동으로 통합). 항응고는 뇌졸중 예방" },
   },
   {
     id: "pe",
@@ -308,7 +308,7 @@ export const ACT2_DISEASES = [
     ],
     ai: { weights: { rv_strain: 40, hypoxemia: 35, clot_burden: 25 }, noRepeat: ["clot_burden"] },
     art: { region: "chest", lesion: [0.4, 0.46, 0.13] },
-    medical: { fidelity: "accurate", note: "고위험 폐색전증은 혈전용해. 우심실 과부하에서 대량 수액은 해롭다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). 고위험 폐색전증은 혈전용해. 우심실 과부하에서 대량 수액은 해롭다" },
   },
   {
     id: "pancreatitis",
@@ -350,7 +350,7 @@ export const ACT2_DISEASES = [
       noRepeat: ["sirs", "ileus"],
     },
     art: { region: "abdomen", lesion: [0.54, 0.44, 0.1] },
-    medical: { fidelity: "simplified", note: "초기 수액이 핵심이나 과도한 수액은 해롭다. 예방적 항생제는 권고되지 않는다(원인균 없음 → 항생제 무효)" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: simplified). 초기 수액이 핵심이나 과도한 수액은 해롭다. 예방적 항생제는 권고되지 않는다(원인균 없음 → 항생제 무효)" },
   },
   {
     id: "ugib",
@@ -403,6 +403,6 @@ export const ACT2_DISEASES = [
     },
     art: { region: "abdomen", lesion: [0.46, 0.36, 0.1] },
     passiveText: ["활동성 출혈: 턴이 시작될 때마다 활력 −1. 내시경 지혈로 멈춘다."],
-    medical: { fidelity: "accurate", note: "소화성 궤양 출혈은 내시경 지혈 + PPI, 제한적 수혈. 항혈전제는 금기" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). 소화성 궤양 출혈은 내시경 지혈 + PPI, 제한적 수혈. 항혈전제는 금기" },
   },
 ] satisfies DiseaseDef[];

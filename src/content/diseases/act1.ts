@@ -44,7 +44,7 @@ export const ACT1_DISEASES = [
     ai: { opening: ["perf_warning"], weights: { ache: 60, local_inflammation: 40 }, maxInARow: 2 },
     art: { region: "abdomen", lesion: [0.36, 0.64, 0.09] },
     passiveText: ["감염원 제거가 들으면 천공 예고가 사라진다."],
-    medical: { fidelity: "accurate", note: "천공은 치료 지연의 대표 합병증. 단순 충수염은 항생제 단독 치료도 가능(CODA)" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). 천공은 치료 지연의 대표 합병증. 단순 충수염은 항생제 단독 치료도 가능(CODA)" },
   },
   {
     id: "gastroenteritis",
@@ -82,7 +82,7 @@ export const ACT1_DISEASES = [
     ],
     ai: { weights: { vomit: 45, diarrhea: 35, dehydration: 20 }, noRepeat: ["dehydration"] },
     art: { region: "abdomen", lesion: [0.5, 0.58, 0.16] },
-    medical: { fidelity: "accurate", note: "바이러스성은 항생제 무효. 수분 보충이 핵심" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). 바이러스성은 항생제 무효. 수분 보충이 핵심" },
   },
   {
     id: "cap",
@@ -129,7 +129,7 @@ export const ACT1_DISEASES = [
     ],
     ai: { weights: { cough: 45, fever: 30, inflame: 25 }, noRepeat: ["inflame"] },
     art: { region: "chest", lesion: [0.34, 0.66, 0.12] },
-    medical: { fidelity: "simplified", note: "비정형균은 베타락탐 무효이고 일반 객담 배양에서 자라지 않는다. 국내 폐렴알균은 마크롤라이드 내성률이 높다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: simplified). 비정형균은 베타락탐 무효이고 일반 객담 배양에서 자라지 않는다. 국내 폐렴알균은 마크롤라이드 내성률이 높다" },
   },
   {
     id: "pyelo",
@@ -169,7 +169,7 @@ export const ACT1_DISEASES = [
     ],
     ai: { weights: { rigor: 40, high_fever: 40, abscess: 20 }, noRepeat: ["abscess"] },
     art: { region: "pelvis", lesion: [0.36, 0.38, 0.1] },
-    medical: { fidelity: "simplified", note: "ESBL은 3세대 세팔로스포린 무효, 카바페넴이 1차" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: simplified). ESBL은 3세대 세팔로스포린 무효, 카바페넴이 1차" },
   },
   {
     id: "asthma",
@@ -201,7 +201,7 @@ export const ACT1_DISEASES = [
     ],
     ai: { weights: { bronchospasm: 45, mucus: 30, fatigue: 25 }, noRepeat: ["mucus", "fatigue"] },
     art: { region: "chest", lesion: [0.5, 0.45, 0.22] },
-    medical: { fidelity: "accurate", note: "β차단제는 기관지 연축을 악화시킨다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). β차단제는 기관지 연축을 악화시킨다" },
   },
   {
     id: "anaphylaxis",
@@ -302,7 +302,7 @@ export const ACT1_DISEASES = [
     ],
     art: { region: "chest", lesion: [0.56, 0.52, 0.1] },
     passiveText: ["질병 부담이 절반 이하로 떨어지면 심실세동으로 넘어간다."],
-    medical: { fidelity: "accurate", note: "1차 PCI가 재관류의 표준. 맥박이 있는 리듬에 비동기 충격은 심실세동을 유발할 수 있다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). 1차 PCI가 재관류의 표준. 맥박이 있는 리듬에 비동기 충격은 심실세동을 유발할 수 있다" },
   },
   {
     id: "stroke",
@@ -349,7 +349,7 @@ export const ACT1_DISEASES = [
     ],
     art: { region: "head", lesion: [0.62, 0.38, 0.12] },
     passiveText: ["골든타임(3턴)이 지나면 혈전용해가 금기가 된다.", "CT 없이 혈전용해제를 쓰면 출혈 합병증(활력 −6, 손에 출혈)."],
-    medical: { fidelity: "accurate", note: "정맥 혈전용해는 발병 4.5시간 이내, 비조영 CT로 출혈을 배제한 뒤. 혈전 제거술은 선택된 환자에서 24시간까지" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). 정맥 혈전용해는 발병 4.5시간 이내, 비조영 CT로 출혈을 배제한 뒤. 혈전 제거술은 선택된 환자에서 24시간까지" },
   },
   {
     id: "ich",
@@ -367,11 +367,11 @@ export const ACT1_DISEASES = [
       hx_assoc: "as_headache_vomit",
       hx_risk: "rk_anticoag",
       ex_neuro: "nr_hemiparesis_drowsy",
-      lab_coag: "coag_prolonged_pt",
+      lab_coag: "coag_inr_high",
       ct: "ct_ich",
     },
     atypical: { hx_assoc: "as_speech", hx_risk: "rk_vascular" },
-    effectiveness: { beta_blocker: "normal", transfusion: "normal", thrombolytic: "harmful", anticoagulant: "harmful", antiplatelet: "harmful" },
+    effectiveness: { beta_blocker: "weak", transfusion: "normal", thrombolytic: "harmful", anticoagulant: "harmful", antiplatelet: "harmful" },
     definitive: [{ tags: ["beta_blocker"], text: "혈압 조절: 혈종이 더 커지지 않는다", effects: [cancel] }],
     passives: [{ on: "combat_start", effects: [warn("golden_time_end", 3)] }],
     moves: [
@@ -448,6 +448,6 @@ export const ACT1_DISEASES = [
       "순환 허탈은 수액이 투여 중이면 절반.",
       "유발 요인이 감염이면 항생제 없이 매 턴 질병 부담 3이 다시 쌓인다. 소변 배양으로 찾는다.",
     ],
-    medical: { fidelity: "accurate", note: "수액 → 칼륨 확인 후 인슐린 → 혈당이 떨어지면 포도당 추가. 스테로이드는 고혈당을 악화시킨다. 감염은 흔한 유발 요인" },
+    medical: { fidelity: "unverified", note: "v2.0에서 소견·감별·결정적 치료·압박이 새로 붙음(v1.1 표시: accurate). 수액 → 칼륨 확인 후 인슐린 → 혈당이 떨어지면 포도당 추가. 스테로이드는 고혈당을 악화시킨다. 감염은 흔한 유발 요인" },
   },
 ] satisfies DiseaseDef[];

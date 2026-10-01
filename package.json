@@ -19,7 +19,8 @@
     "sim": "tsx src/sim/cli.ts",
     "replay": "tsx src/sim/replay.ts",
     "shots": "tsx scripts/screenshots.ts",
-    "intent:leak": "tsx scripts/intent-leak.ts"
+    "intent:leak": "tsx scripts/intent-leak.ts",
+    "medical:review": "tsx scripts/medical-review.ts"
   },
   "dependencies": {
     "react": "18.3.1",

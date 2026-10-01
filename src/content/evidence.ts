@@ -198,6 +198,7 @@ export const FINDINGS: FindingDef[] = [
   f("coag_ddimer_high", "D-dimer 크게 상승", 2),
   f("coag_dic", "PT 연장, 피브리노겐 저하, D-dimer 상승", 2),
   f("coag_prolonged_pt", "PT 연장(간 합성 기능 저하)", 1),
+  f("coag_inr_high", "INR 3.4로 연장(와파린 효과)", 2),
   // ── 소변 ──
   f("ua_normal", "소변 검사 정상", 0),
   f("ua_pyuria", "농뇨, 아질산염 양성", 2),

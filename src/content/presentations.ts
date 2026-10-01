@@ -55,6 +55,7 @@ export const PRESENTATIONS: PresentationDef[] = [
     pressure: "infection",
     vitals: "vt_fever_tachy",
     course: basic("infection"),
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_abd_pain",
@@ -69,6 +70,7 @@ export const PRESENTATIONS: PresentationDef[] = [
     pressure: "pain",
     vitals: "vt_fever_tachy",
     course: basic("pain", "pain:mild"),
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_fever",
@@ -98,6 +100,7 @@ export const PRESENTATIONS: PresentationDef[] = [
     pressure: "respiratory",
     vitals: "vt_dyspneic",
     course: { weights: { "respiratory:moderate": 40, "respiratory:mild": 25, "worsening:mild": 20, "respiratory:severe": 15 }, noRepeat: ["worsening:mild", "respiratory:severe"] },
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_chest_pain",
@@ -111,6 +114,7 @@ export const PRESENTATIONS: PresentationDef[] = [
     pressure: "cardiac",
     vitals: "vt_tachy_distress",
     course: { weights: { "pain:moderate": 40, "hemodynamic:severe": 25, "worsening:mild": 35 }, noRepeat: ["hemodynamic:severe", "worsening:mild"] },
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_focal_neuro",
@@ -132,6 +136,7 @@ export const PRESENTATIONS: PresentationDef[] = [
     vignette: "당뇨가 있는 환자가 토하며 깊고 빠르게 숨을 쉰다. 이번 입원의 주 진단이 될 문제다.",
     candidates: [{ disease: "dka", weight: 1 }],
     pressure: "metabolic",
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   // ── 2막 병동 ──
   {
@@ -146,6 +151,7 @@ export const PRESENTATIONS: PresentationDef[] = [
     pressure: "pain",
     vitals: "vt_lowgrade",
     course: basic("pain", "complication:mild@3"),
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_confusion",
@@ -189,6 +195,7 @@ export const PRESENTATIONS: PresentationDef[] = [
     pressure: "hemodynamic",
     vitals: "vt_fever_tachy",
     course: basic("hemodynamic"),
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_palpitation",
@@ -221,6 +228,7 @@ export const PRESENTATIONS: PresentationDef[] = [
     pressure: "respiratory",
     vitals: "vt_tachy_distress",
     course: { weights: { "respiratory:moderate": 40, "hemodynamic:severe": 30, "worsening:mild": 30 }, noRepeat: ["hemodynamic:severe", "worsening:mild"] },
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_severe_abd",
@@ -247,6 +255,7 @@ export const PRESENTATIONS: PresentationDef[] = [
     vignette: "선홍색 피를 한 사발 토했다. 이번 입원의 두 번째 고비다.",
     candidates: [{ disease: "ugib", weight: 1 }],
     pressure: "bleeding",
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   // ── 3막 중환자실 ──
   {
@@ -276,6 +285,7 @@ export const PRESENTATIONS: PresentationDef[] = [
     pressure: "renal",
     vitals: "vt_oliguric",
     course: basic("renal"),
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_hypoxemia",
@@ -290,6 +300,7 @@ export const PRESENTATIONS: PresentationDef[] = [
     pressure: "respiratory",
     vitals: "vt_severe_hypox",
     course: basic("respiratory"),
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_bleeding",
@@ -317,6 +328,7 @@ export const PRESENTATIONS: PresentationDef[] = [
     pressure: "hemodynamic",
     vitals: "vt_obstructive",
     course: { opening: ["hemodynamic:moderate"], rules: [{ when: { all: [{ noCountdown: true }, { turnAtLeast: 2 }] }, sig: "complication:mild@3" }], weights: { "hemodynamic:moderate": 55, "worsening:mild": 45 }, noRepeat: ["worsening:mild"] },
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_icu_crash",
@@ -330,6 +342,7 @@ export const PRESENTATIONS: PresentationDef[] = [
     pressure: "respiratory",
     vitals: "vt_vent_crash",
     course: { weights: { "respiratory:moderate": 40, "hemodynamic:moderate": 30, "worsening:mild": 30 }, noRepeat: ["worsening:mild"] },
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_septic",
@@ -337,5 +350,6 @@ export const PRESENTATIONS: PresentationDef[] = [
     vignette: "열이 치솟고 혈압이 무너진다. 이번 입원의 마지막 고비다.",
     candidates: [{ disease: "septic_shock", weight: 1 }],
     pressure: "hemodynamic",
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
 ];
