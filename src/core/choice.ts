@@ -1,7 +1,7 @@
 // 임상 결정: 선택지(choose_option), 처방집 발견(discover), 협진, 시술 결정.
 // 선택지를 만드는 모든 함수는 플레이어가 아는 정보(감별 목록, 소견, 작업 진단, 환자 상태, 처방집)만 쓴다.
 // 실제 질병(enemy.diseaseId, 변이)은 읽지 않는다. tests/info-leak.test.ts가 이를 검사한다.
-import { cardDef, channelDef, consultDef, db, diseaseDef, interactionRules, tagDef } from "./registry";
+import { cardDef, channelDef, consultDef, db, diseaseDef, findingDef, hasFinding, interactionRules, organismDef, tagDef } from "./registry";
 import { LEVEL_LABEL, LEVEL_RANK, channelHint, isObserved, liveHypotheses, pendingChannels, scoreDifferential } from "./evidence";
 import { allTraits, cardTextbook, isTreatmentCard } from "./textbook";
 import { evalCondition } from "./values";
@@ -157,6 +157,15 @@ export function resolveOption(state: GameState, optionId: string, enqueueFront: 
 
 const VALUE: Record<string, number> = { key: 4, weak: 3, normal: 2, resistant: 1, immune: 0, not_indicated: 0, harmful: -2, generic: 0 };
 
+/** 배양으로 확인한 원인균 (플레이어가 본 배양 소견에서 읽는다) */
+export function knownOrganism(enemy: EnemyState): string | undefined {
+  for (const o of enemy.observations) {
+    const f = hasFinding(o.finding) ? findingDef(o.finding) : undefined;
+    if (f?.organism && f.organism !== "virus") return f.organism;
+  }
+  return undefined;
+}
+
 /** 처방집 항목 (같은 카드는 하나, 업그레이드 우선) */
 export function formularyItems(state: GameState, pool: "drug" | "procedure"): CardInstance[] {
   const out = new Map<string, CardInstance>();
@@ -167,6 +176,21 @@ export function formularyItems(state: GameState, pool: "drug" | "procedure"): Ca
     if (!prev || (!prev.upgraded && ci.upgraded)) out.set(ci.cardId, ci);
   }
   return [...out.values()];
+}
+
+/** 보존적 가치: 약이 주는 안정화 (투여 중 효과 포함) */
+function supportValue(def: CardDef): number {
+  let v = 0;
+  const walk = (ops: EffectOp[]) => {
+    for (const op of ops) {
+      if (op.op === "gain_stability" && typeof op.amount === "number") v += op.amount;
+      if (op.op === "heal" && typeof op.amount === "number") v += op.amount;
+      if (op.op === "choose_option") for (const o of op.options) walk(o.effects);
+    }
+  };
+  walk(def.effects);
+  for (const t of def.drug?.whileActive ?? []) walk(t.effects);
+  return v;
 }
 
 /** 환자 상태에서 보이는 부작용 관리 필요 (손·더미의 부작용 카드, 환자 상태) */
@@ -262,15 +286,20 @@ export function discoverDefs(state: GameState, enemy: EnemyState | undefined, po
   items.forEach((ci, idx) => {
     const def = cardDef(ci.cardId, ci.upgraded);
     const treat = isTreatmentCard(def) && (def.tags.some((t) => tagDef(t)?.kind === "therapeutic") || !!def.drug?.spectrum);
+    // 배양으로 원인균을 확인했으면(공개된 소견) 항생제는 그 균의 감수성으로 본다
+    const known = def.drug?.spectrum && enemy?.organismKnown ? knownOrganism(enemy) : undefined;
+    const knownVal = known ? VALUE[def.drug!.spectrum![known] ?? "immune"]! - (def.tags.includes("broad_spectrum") ? 1 : 0) : undefined;
     const vals = live.map((h) => {
       if (!treat) return 0;
+      if (knownVal !== undefined) return knownVal;
       const tb = cardTextbook(h.diseaseId, def);
       if (tb.generic) return 0;
       // 원인균에 따라 달라지면 최선과 최악의 중간으로 본다
       return tb.varies ? (VALUE[tb.best]! + VALUE[tb.worst]!) / 2 : VALUE[tb.best]!;
     });
     let wdVal = 0;
-    if (wd && treat) {
+    if (knownVal !== undefined) wdVal = knownVal;
+    else if (wd && treat) {
       const tb = cardTextbook(wd, def);
       if (tb.harmful && !tb.varies) return; // 작업 진단에 금기인 치료는 내놓지 않는다
       wdVal = tb.generic ? 0 : tb.varies ? (VALUE[tb.best]! + VALUE[tb.worst]!) / 2 : VALUE[tb.best]!;
@@ -300,9 +329,24 @@ export function discoverDefs(state: GameState, enemy: EnemyState | undefined, po
   const coverage = (x: Cand) => x.vals.reduce((a, v, i) => a + live[i]!.weight * Math.max(0, v - covered[i]!), 0) - x.vals.reduce((a, v, i) => a + (v < 0 ? live[i]!.weight : 0), 0);
   const manageNeed = cands.some((x) => x.manage > 0);
   const treatSlots = manageNeed ? count - 1 : count;
+  const roles = new Map<Cand, "first" | "alt" | "second" | "hedge" | "support">();
+  const lastPicked = () => chosen[chosen.length - 1]!;
+  /** 치료의 대가: 부작용 카드 수(손으로 오면 2배)와 광범위(선택 압력·내성) */
+  const burden = (x: Cand) => (x.def.drug?.sideEffects ?? []).reduce((a, se) => a + se.count * (se.dest === "hand" ? 2 : 1), 0) + (x.def.tags.includes("broad_spectrum") ? 2 : 0);
   if (wd) {
-    // 표적: 작업 진단에 잘 듣는 순서, 같으면 감별 목록 전체 가치
-    for (let i = 0; i < treatSlots; i++) if (!pick((x) => (x.wdVal >= 2 ? x.wdVal * 10 + coverage(x) * 0.1 : 0))) break;
+    // v2.1 표적 오더는 세 역할로 고른다: 1차(가장 잘 듣는 것) · 대안(덜 듣거나 같아도 대가가 적은 것) · 보험(작업 진단이 틀렸을 때 다른 가설에 듣는 것).
+    // "맨 위가 정답"인 퀴즈가 되지 않게, 효과만이 아니라 부작용·범위·진단 불확실성을 맞바꾸게 한다
+    if (pick((x) => (x.wdVal >= 2 ? x.wdVal * 10 + coverage(x) * 0.1 : 0))) roles.set(lastPicked(), "first");
+    const first = chosen[0];
+    // 대안: 1차와 거의 같이 들으면서(한 등급 아래까지) 대가가 적은 것. 없으면 그다음으로 잘 듣는 것
+    if (first && chosen.length < treatSlots && pick((x) => (x.wdVal >= 2 && x.wdVal >= first.wdVal - 1 && burden(x) < burden(first) ? 10 + x.wdVal * 3 - burden(x) : 0))) roles.set(lastPicked(), "alt");
+    else if (first && chosen.length < treatSlots && pick((x) => (x.wdVal >= 2 ? x.wdVal * 10 - burden(x) : 0))) roles.set(lastPicked(), "second");
+    const wdIdx = live.findIndex((h) => h.diseaseId === wd);
+    const hedge = (x: Cand) => x.vals.reduce((a, v, i) => a + (i !== wdIdx ? live[i]!.weight * Math.max(0, v - covered[i]!) : 0), 0) - ((x.vals[wdIdx] ?? 0) < 0 ? 50 : 0);
+    if (chosen.length < treatSlots && live.length > 1 && pick(hedge)) roles.set(lastPicked(), "hedge");
+    while (chosen.length < treatSlots && pick((x) => (x.wdVal >= 2 ? x.wdVal * 10 - burden(x) : 0))) {
+      /* 계속 */
+    }
   }
   // 경험적(또는 표적 칸이 남으면): 감별 목록을 넓게 덮는 순서
   while (chosen.length < treatSlots && pick((x) => coverage(x))) {
@@ -313,17 +357,36 @@ export function discoverDefs(state: GameState, enemy: EnemyState | undefined, po
   while (chosen.length < Math.min(2, count) && pick((x) => x.manage + Math.max(0, ...x.vals, 0) + (x.treat ? 0 : 1))) {
     /* 계속 */
   }
+  // 표적 오더의 빈 칸은 보존적 치료(진단과 무관한 안정화)로: 치료 대신 버티는 것도 선택지다
+  if (wd && chosen.length < count && pick((x) => (!x.treat && supportValue(x.def) > 0 ? 1 + supportValue(x.def) / 10 : 0))) roles.set(lastPicked(), "support");
   const out = chosen.map((x) => {
     const { detail, risk } = perHypothesisText(state, enemy, x.def);
     const r = [...risk, ...hazardText(state, x.def)];
     const se = sideEffectText(x.def);
     if (se) r.push(se);
-    const lead = wd && x.wdVal >= 3 ? `작업 진단(${diseaseDef(wd).nameKo})의 1차 치료. ` : "";
+    const org = x.def.drug?.spectrum && enemy?.organismKnown ? knownOrganism(enemy) : undefined;
+    const lead = org
+      ? `배양 감수성(${organismDef(org)?.nameKo ?? org}): ${GRADE_SHORT[x.def.drug!.spectrum![org] ?? "immune"]}${x.def.tags.includes("broad_spectrum") ? " · 광범위" : ""}. `
+      : wd && x.wdVal >= 3
+        ? `작업 진단(${diseaseDef(wd).nameKo})의 1차 치료. `
+        : "";
     const manage = x.manage > 0 ? "부작용·환자 상태를 정리한다. " : "";
+    const role = roles.get(x);
+    const others = live.filter((h) => h.diseaseId !== wd).map((h) => diseaseDef(h.diseaseId).nameKo);
+    const roleText =
+      role === "alt"
+        ? "대안: 1차보다 대가(부작용·범위)가 적다. "
+        : role === "second"
+          ? "차선: 1차와 다른 약 — 덜 들을 수 있지만 같은 약을 거듭 쓰지 않고 함께 쓸 수 있다. "
+        : role === "hedge"
+          ? `보험: 작업 진단이 틀렸다면(${others.slice(0, 2).join("·")}) 듣는다. `
+          : role === "support"
+            ? "보존적: 진단과 무관하게 버틴다. "
+            : "";
     const o: OptionDef = {
       id: x.ci.cardId,
       label: `${x.def.nameKo}${x.ci.upgraded ? "+" : ""}`,
-      detail: `${lead}${manage}${detail}`.trim() || x.def.nameEn,
+      detail: `${roleText}${lead}${manage}${detail}`.trim() || x.def.nameEn,
       effects: [{ op: "add_card", cardId: x.ci.cardId, count: 1, dest: "hand", costZeroThisTurn: true, ...(x.ci.upgraded ? { upgraded: true } : {}) }],
       cardId: x.ci.cardId,
     };
@@ -332,7 +395,8 @@ export function discoverDefs(state: GameState, enemy: EnemyState | undefined, po
     return o;
   });
   // 맞는 치료가 하나뿐이거나 없으면 "처방하지 않음"도 판단이다: 오더를 돌려받고 카드 1장
-  if (out.length < 2) {
+  const treatOffers = chosen.filter((x) => x.treat && roles.get(x) !== "support").length;
+  if (out.length < 2 || (wd && treatOffers < 2 && out.length < 4)) {
     out.push({
       id: "none",
       label: "처방하지 않음",

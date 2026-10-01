@@ -168,7 +168,7 @@ function opText(op: EffectOp, def: CardDef, extra = false): string {
     case "targeted_antibiotic":
       return "확인된 원인균에 맞는 가장 좁은 항생제를 손에";
     case "deescalate":
-      return "범위 축소: 광범위 항생제 중단. 원인균을 알면 장내세균 교란 정리";
+      return "범위 축소: 광범위 항생제 중단. 원인균을 알면 장내세균 교란 정리, 카드 1장, 오더 +1, 선택 압력 −2";
     case "end_drug":
       if (op.filter.all) return "투여 중 약물 전부 종료";
       return `투여 중인 ${(op.filter.tags ?? []).map((t) => tagDef(t)?.nameKo ?? t).join("·")} 종료`;

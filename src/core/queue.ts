@@ -2,14 +2,15 @@
 import { cardDef, channelDef, db, diseaseDef, relicDef, statusDef, tagDef } from "./registry";
 import { currentOrganism, findMove, phaseDef } from "./disease";
 import { calcEnemyAttack, calcPlayerDamage } from "./damage";
-import { bestChannels, isObserved, observe, observeResponse, pendingChannels } from "./evidence";
+import { bestChannels, isObserved, observe, observeCourse, observeResponse, pendingChannels } from "./evidence";
 import { consultRecommendDefs, consultSpecialtyDefs, discoverDefs, openChoice, procedureDecisionDefs, procedureRisk, stopDrugDefs } from "./choice";
 import { responseClass } from "./textbook";
 import { administer, diseaseLabel, emitPersistentOnly, emitSideEffects, endDrugs, harmfulResponse, tickDrugs } from "./drugs";
 import { addCardTo, addGeneratedCard, drawCards, exhaustInstance, matchesFilter, pileOf, removeFromPiles } from "./cards";
-import { planIntents, replanAll } from "./enemy-ai";
+import { intentLabel, moveForSig, planIntents, replanAll, scriptFor } from "./enemy-ai";
 import { fire } from "./triggers";
 import { pickOne } from "./rng";
+import { PRESSURE_DEESCALATE, carryOverCultures, changePressure } from "./micro";
 import { drugTagActive, evalCondition, evalValue, resolveTargets } from "./values";
 import { addStatus, clamp, emit, findEnemy, hasRelic, livingEnemies, log, modifierValue, removeStatus, statusStacks } from "./util";
 import type { CardInstance, DelayedEffect, EffectCtx, EffectOp, EnemyState, GameState, QueuedEffect, TargetSel, TurnPhase } from "./types";
@@ -73,6 +74,8 @@ function cureEnemy(state: GameState, enemy: EnemyState): void {
   enemy.cured = true;
   enemy.countdowns = [];
   enemy.stability = 0;
+  // 보낸 배양은 문제가 나아도 계속 자란다: 미생물 기록으로 옮겨 다음 전투에서 결과를 받는다
+  carryOverCultures(state, enemy.uid);
   c.delayed = c.delayed.filter((d) => d.ctx.targetUid !== enemy.uid);
   state.run.stats.diseasesCured.push(enemy.diseaseId);
   emit({ type: "enemy_cured", target: enemy.uid, diseaseId: enemy.diseaseId });
@@ -86,8 +89,16 @@ export function enterPhase(state: GameState, enemy: EnemyState, phase: number): 
   enemy.phase = phase;
   const ph = phaseDef(enemy);
   emit({ type: "phase_changed", target: enemy.uid, phase, name: ph?.nameKo ?? "" });
-  log(c, "warn", `${diseaseLabel(enemy)}: ${ph?.nameKo ?? "상태 변화"}`);
-  replanAll(state, enemy);
+  // 확진 전에는 단계 이름을 쓰지 않는다: 그 변화가 드러나는 것은 경과 소견뿐이다
+  log(c, "warn", enemy.knowledge >= 2 ? `${diseaseLabel(enemy)}: ${ph?.nameKo ?? "상태 변화"}` : `${diseaseLabel(enemy)}: 경과가 바뀌었다`);
+  if (ph?.course) observeCourse(state, enemy, ph.course);
+  const script = scriptFor(enemy);
+  if (script) {
+    // 대본이 계속 의도를 정한다: 보인 의도는 그대로 두고 칸에 맞는 새 단계의 행동으로 바꾼다
+    const planned = enemy.ai.planned;
+    enemy.ai.planned = [];
+    for (const p of planned) enemy.ai.planned.push({ ...p, moveId: moveForSig(enemy, p.sig ?? "").id });
+  } else replanAll(state, enemy);
   if (ph?.onEnter?.length) enqueueFront(state, ph.onEnter, { owner: { kind: "enemy", id: enemy.uid } });
 }
 
@@ -586,8 +597,10 @@ function execute(state: GameState, item: QueuedEffect): void {
       }
       if (c.enemies.some((e) => !e.cured && e.organismKnown)) {
         state.run.stats.deescalations += 1;
-        log(c, "diag", "범위 축소: 원인균에 맞춘 치료로 바꾼다");
-        enqueueFront(state, [{ op: "exhaust_cards", from: ["hand", "draw", "discard"], filter: { ids: ["dysbiosis"] }, amount: "all" }, { op: "draw", amount: 1 }], ctx);
+        log(c, "diag", "범위 축소: 원인균에 맞춘 치료로 바꾼다 (오더 +1, 선택 압력 −2)");
+        // v2.1: 범위 축소가 이번 전투(오더·카드·장내세균 교란 정리)와 런(선택 압력) 모두에 이득이 되게
+        changePressure(state, PRESSURE_DEESCALATE, "범위 축소");
+        enqueueFront(state, [{ op: "exhaust_cards", from: ["hand", "draw", "discard"], filter: { ids: ["dysbiosis"] }, amount: "all" }, { op: "draw", amount: 1 }, { op: "gain_orders", amount: 1 }], ctx);
       } else log(c, "warn", "원인균을 모른 채 광범위 항생제를 끊었다");
       return;
     }
@@ -650,6 +663,11 @@ function execute(state: GameState, item: QueuedEffect): void {
         else c.discardPile.push(ci);
       }
       if (c.current?.cardUid === op.cardUid) c.current = undefined;
+      return;
+    }
+    case "course_finding": {
+      const e = ctx.owner.kind === "enemy" ? findEnemy(c, ctx.owner.id) : undefined;
+      if (e && !e.cured) observeCourse(state, e, op.finding);
       return;
     }
     case "purge_self": {
@@ -836,19 +854,22 @@ function runPhase(state: GameState, name: TurnPhase, enemyUid?: string): void {
       for (const cd of due) {
         const mv = findMove(e, cd.moveId);
         emit({ type: "countdown_fired", target: e.uid, moveId: cd.moveId });
-        log(c, "enemy", `${diseaseLabel(e)}: ${mv.nameKo}!`);
+        log(c, "enemy", `${diseaseLabel(e)}: ${e.knowledge >= 2 ? mv.nameKo : "예고된 합병증"}!`);
         for (const x of mv.effects) queued.push({ op: x, ctx: ectx });
+        if (mv.course) queued.push({ op: { op: "course_finding", finding: mv.course }, ctx: ectx });
       }
       const planned = e.ai.planned.shift();
       if (planned) {
         e.ai.history.push(planned.moveId);
+        (e.ai.sigs ??= []).push(planned.sig ?? "");
         const mv = findMove(e, planned.moveId);
         emit({ type: "enemy_move", target: e.uid, moveId: mv.id, name: mv.nameKo });
-        log(c, "enemy", `${diseaseLabel(e)}: ${mv.nameKo}`);
+        log(c, "enemy", `${diseaseLabel(e)}: ${e.knowledge >= 2 ? mv.nameKo : intentLabel(planned.sig)}`);
         for (const x of mv.effects) {
           const opx = x.op === "damage" && planned.hits !== undefined ? { ...x, hits: planned.hits } : x;
           queued.push({ op: opx, ctx: ectx });
         }
+        if (mv.course) queued.push({ op: { op: "course_finding", finding: mv.course }, ctx: ectx });
       }
       queued.push({ op: phaseOp("enemy_turn_end", e.uid), ctx: SYSTEM });
       c.queue.unshift(...queued);

@@ -12,11 +12,11 @@ import { RestScreen } from "./screens/Rest";
 import { EventScreen } from "./screens/Event";
 import { BossRelicScreen } from "./screens/BossRelic";
 import { EndScreen } from "./screens/End";
-import { DeckOverlay, CasebookOverlay, SettingsOverlay, HelpOverlay, PendingOverlay, FormularyOverlay } from "./components/Overlays";
+import { DeckOverlay, CasebookOverlay, SettingsOverlay, HelpOverlay, PendingOverlay, FormularyOverlay, MicroOverlay } from "./components/Overlays";
 import { DecisionPanel } from "./components/DecisionPanel";
 import { Toasts } from "./components/Fx";
 
-type OverlayKind = null | "deck" | "formulary" | "casebook" | "settings" | "help";
+type OverlayKind = null | "deck" | "formulary" | "casebook" | "micro" | "settings" | "help";
 
 /** 무대(1280×720)를 뷰포트에 맞춰 줄이고 늘린다. 좁은 화면에서는 좌우 16px 여백을 둔다. */
 function useStageScale(ref: React.RefObject<HTMLDivElement>): number {
@@ -100,6 +100,7 @@ export function App() {
             onDeck={() => setOverlay("deck")}
             onFormulary={() => setOverlay("formulary")}
             onCasebook={() => setOverlay("casebook")}
+            onMicro={() => setOverlay("micro")}
             onSettings={() => setOverlay("settings")}
           />
         )}
@@ -109,6 +110,7 @@ export function App() {
         {overlay === "deck" && state && <DeckOverlay state={state} onClose={() => setOverlay(null)} />}
         {overlay === "formulary" && state && <FormularyOverlay state={state} onClose={() => setOverlay(null)} />}
         {overlay === "casebook" && state && <CasebookOverlay state={state} onClose={() => setOverlay(null)} />}
+        {overlay === "micro" && state && <MicroOverlay state={state} onClose={() => setOverlay(null)} />}
         {overlay === "settings" && <SettingsOverlay snap={snap} onClose={() => setOverlay(null)} />}
         {overlay === "help" && <HelpOverlay onClose={() => setOverlay(null)} />}
         <Toasts fx={snap.fx} />

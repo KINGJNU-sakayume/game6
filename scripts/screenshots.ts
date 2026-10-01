@@ -19,11 +19,11 @@ const ONLY = arg("only", "").split(",").filter(Boolean);
 const OUT = arg("out", "shots");
 mkdirSync(OUT, { recursive: true });
 
-type Key = "map" | "combat" | "combat2" | "combat_act2" | "boss" | "reward" | "shop" | "rest" | "event" | "boss_relic" | "gameover" | "victory" | "map_act2" | "pending";
+type Key = "map" | "combat" | "combat2" | "combat_act2" | "boss" | "reward" | "shop" | "rest" | "event" | "boss_relic" | "gameover" | "victory" | "map_act2" | "pending" | "micro";
 
 function collect(): Partial<Record<Key, GameState>> {
   const got: Partial<Record<Key, GameState>> = {};
-  const want: Key[] = ["map", "combat", "combat2", "combat_act2", "boss", "reward", "shop", "rest", "event", "boss_relic", "gameover", "victory", "map_act2", "pending"];
+  const want: Key[] = ["map", "combat", "combat2", "combat_act2", "boss", "reward", "shop", "rest", "event", "boss_relic", "gameover", "victory", "map_act2", "pending", "micro"];
   for (let i = 0; i < 60 && want.some((k) => !got[k]); i++) {
     const seed = `shot-${i}`;
     let s = newRun(seed);
@@ -33,6 +33,8 @@ function collect(): Partial<Record<Key, GameState>> {
       const put = (k: Key) => {
         if (!got[k]) got[k] = structuredClone(s);
       };
+      // 미생물 기록: 결과가 둘 이상 쌓이고 선택 압력이 있는 지도 화면
+      if (s.phase === "map" && (s.run.micro?.results.length ?? 0) >= 2 && (s.run.micro?.pressure ?? 0) > 0) put("micro");
       if (s.pending) put("pending");
       else if (s.phase === "map") s.run.act === 1 ? put("map") : put("map_act2");
       else if (s.phase === "combat" && s.combat && s.combat.turn >= 2) {
@@ -128,6 +130,7 @@ async function main() {
     ["pending", "14-pending"],
     ["gameover", "15-gameover"],
     ["victory", "16-victory"],
+    ["micro", "17-micro"],
   ];
   for (const [k, name] of order) {
     const st = states[k];
@@ -151,6 +154,13 @@ async function main() {
       }
       await page.mouse.move(10, 10);
       await page.keyboard.press("Escape");
+      // v2.1 의도: 압박 종류와 크기 등급, 확진 전에는 수치 없음
+      const intent = page.locator(".intent-row .intent").first();
+      if (await intent.count()) {
+        await intent.hover();
+        await shoot(page, `${name}-intent`);
+        await page.mouse.move(10, 10);
+      }
       const tipHost = page.locator(".dz-table-btn").first();
       if (await tipHost.count()) {
         await tipHost.hover();
@@ -166,6 +176,10 @@ async function main() {
     if (k === "pending") {
       await page.locator(".ov-sheet .grid-cell .card[role=button]").first().click().catch(() => undefined);
       await shoot(page, "14b-pending-picked");
+    }
+    if (k === "micro") {
+      await page.locator(".emr-btn", { hasText: "미생물" }).click().catch(() => undefined);
+      await shoot(page, "17b-micro-open");
     }
     if (k === "map") {
       await page.locator(".emr-actions button").first().click().catch(() => undefined);

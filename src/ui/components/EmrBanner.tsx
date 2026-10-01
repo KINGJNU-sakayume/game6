@@ -19,6 +19,7 @@ export function EmrBanner({
   onDeck,
   onFormulary,
   onCasebook,
+  onMicro,
   onSettings,
 }: {
   state: GameState;
@@ -26,6 +27,7 @@ export function EmrBanner({
   onDeck: () => void;
   onFormulary: () => void;
   onCasebook: () => void;
+  onMicro?: () => void;
   onSettings: () => void;
 }) {
   const r = state.run;
@@ -79,6 +81,14 @@ export function EmrBanner({
         </button>
         <button className="emr-btn" onClick={onFormulary} title="처방집: 투약 오더로 불러내는 약과 시술">
           처방집 <span className="mono">{r.formulary.length}</span>
+        </button>
+        <button
+          className={`emr-btn ${(r.micro?.pressure ?? 0) >= 6 ? "is-warn" : ""}`}
+          onClick={onMicro}
+          title="미생물 기록: 배양 결과·감수성과 선택 압력"
+        >
+          미생물 <span className="mono">{r.micro?.results.length ?? 0}{(r.micro?.pending.length ?? 0) > 0 ? `+${r.micro!.pending.length}` : ""}</span>
+          <span className="mono emr-dim"> 압력 {r.micro?.pressure ?? 0}</span>
         </button>
         <button className="emr-btn" onClick={onCasebook} title="증례집">
           증례집 <span className="mono">{Object.keys(r.casebook).length}</span>

@@ -4,6 +4,7 @@ import { gradeFor } from "./damage";
 import { cardTextbook } from "./textbook";
 import { observeResponse, scoreDifferential } from "./evidence";
 import { addGeneratedCard } from "./cards";
+import { PRESSURE_BROAD, PRESSURE_EMPIRIC, changePressure } from "./micro";
 import { fire } from "./triggers";
 import { evalCondition, evalValue } from "./values";
 import { addStatus, emit, findEnemy, hasRelic, livingEnemies, log, modifierValue } from "./util";
@@ -133,6 +134,19 @@ export function administer(state: GameState, cardUid: Uid, ctx: EffectCtx): void
     empiric = !(tgt?.organismKnown ?? false);
     if (empiric) state.run.stats.abxEmpiric += 1;
     else state.run.stats.abxTargeted += 1;
+    // 텔레메트리: 3막 감염 전투
+    if (state.run.act === 3 && tgt && (diseaseDef(tgt.diseaseId).category === "infection" || !!diseaseDef(tgt.diseaseId).organism)) {
+      if (empiric) state.run.stats.act3AbxEmpiric = (state.run.stats.act3AbxEmpiric ?? 0) + 1;
+      else state.run.stats.act3AbxTargeted = (state.run.stats.act3AbxTargeted ?? 0) + 1;
+    }
+    // 선택 압력: 광범위 항생제, 원인균을 모른 채 쓴 항생제 (환자의 항생제 이력)
+    // 한 전투에서 같은 약은 한 번만 센다
+    const key = `pressure:${def.id}`;
+    if (!c.flags[key]) {
+      c.flags[key] = 1;
+      if (def.tags.includes("broad_spectrum")) changePressure(state, PRESSURE_BROAD, `광범위 항생제 ${def.nameKo}`);
+      else if (empiric) changePressure(state, PRESSURE_EMPIRIC, `원인균을 모르는 ${def.nameKo}`);
+    }
   }
   emit({ type: "drug_administered", cardId: def.id, refreshed: !!existing, ...(empiric !== undefined ? { empiric } : {}) });
   if (def.tags.includes("fluid")) c.counters.fluidsGiven = (c.counters.fluidsGiven ?? 0) + 1;

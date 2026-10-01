@@ -1372,3 +1372,55 @@
   color: var(--ink);
   padding: 4px 6px;
 }
+
+/* v2.1 미생물 기록 */
+.micro {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.micro-pressure {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border: 1px solid #c3cac3;
+  background: #fff;
+  padding: 8px 10px;
+}
+.micro-pressure b {
+  font-size: 14px;
+  color: var(--ink);
+}
+.micro-col {
+  color: var(--stamp);
+}
+.micro-sec h4 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.micro-row {
+  display: grid;
+  grid-template-columns: 120px 220px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 4px 0;
+  border-bottom: 1px dashed #d6dbd6;
+}
+.micro-row.is-pending {
+  color: var(--ink-faint);
+}
+.micro-spec {
+  font-weight: 700;
+}
+.micro-abx {
+  grid-column: 1 / -1;
+}
+.micro-empty {
+  color: var(--ink-faint);
+}
+.emr-btn.is-warn {
+  border-color: var(--stamp);
+}

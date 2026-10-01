@@ -1,6 +1,6 @@
 // 오버레이: 대기 선택, 처방 목록, 더미 보기, 증례집, 설정, 진료 안내
 import React from "react";
-import { cardDef, categoryName, db, diseaseDef, textbookSummary } from "../../core";
+import { cardDef, categoryName, db, diseaseDef, gradeLabel, microView, textbookSummary } from "../../core";
 import type { CardInstance, GameState } from "../../core";
 import { controller } from "../controller";
 import type { Snapshot } from "../controller";
@@ -183,6 +183,57 @@ export function CasebookOverlay({ state, onClose }: { state: GameState; onClose:
   );
 }
 
+/** 미생물 기록 (v2.1): 런 내내 남는 배양 결과·감수성과 선택 압력 */
+export function MicroOverlay({ state, onClose }: { state: GameState; onClose: () => void }) {
+  const m = microView(state);
+  return (
+    <Sheet title="미생물 기록" sub="이번 입원에서 받은 배양과 결과. 전투가 끝나도 배양은 계속 자라고, 결과는 다음 전투에서 온다." onClose={onClose} wide>
+      <div className="micro">
+        <div className="micro-pressure">
+          <b>선택 압력 {m.pressure}</b>
+          <span>
+            광범위 항생제(+2)와 원인균을 모르고 쓴 항생제(+1)가 쌓고, 원인균을 확인한 뒤 범위 축소(−2)가 줄인다. 이후 감염이 내성균(ESBL·MRSA·녹농균)일 가능성 +{m.pressurePct}%.
+          </span>
+          {m.colonized.length > 0 && <span className="micro-col">차트의 균: {m.colonized.join(", ")} — 같은 균의 이후 감염 가능성이 오른다</span>}
+        </div>
+        {m.pending.length > 0 && (
+          <div className="micro-sec">
+            <h4>배양 중</h4>
+            {m.pending.map((p, i) => (
+              <div key={i} className="micro-row is-pending">
+                <span className="micro-spec">{p.specimen}</span>
+                <span className="micro-src">{p.source} · {p.where}</span>
+                <span className="micro-text">다음 전투에서 결과</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="micro-sec">
+          <h4>결과</h4>
+          {m.results.length === 0 && <div className="micro-empty">아직 나온 배양 결과가 없다</div>}
+          {m.results.map((r, i) => (
+            <div key={i} className="micro-row">
+              <span className="micro-spec">{r.specimen}</span>
+              <span className="micro-src">{r.source} · {r.where}</span>
+              <span className="micro-text">{r.text}</span>
+              {r.antibiogram && (
+                <span className="abx-grid micro-abx">
+                  {r.antibiogram.map((c) => (
+                    <span key={c.cardId} className={`abx-cell g-${c.grade === "?" ? "unknown" : c.grade}`} title={gradeLabel(c.grade)}>
+                      {c.short}
+                      <b>{gradeLabel(c.grade)}</b>
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </Sheet>
+  );
+}
+
 export function SettingsOverlay({ snap, onClose }: { snap: Snapshot; onClose: () => void }) {
   const [confirm, setConfirm] = React.useState(false);
   return (
@@ -255,7 +306,7 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
         <section>
           <h4>한 턴의 흐름</h4>
           <p>
-            <b>안정화 → 감별 → 결정 → 치료 → 재평가.</b> 오더 3으로 카드를 쓴다. 턴을 마치면 질병이 표시된 방향으로 환자를 악화시킨다. <b>안정화</b>는 그 악화를 먼저 막고 내 턴이 시작되면 사라진다.
+            <b>안정화 → 감별 → 결정 → 치료 → 재평가.</b> 오더 3으로 카드를 쓴다. 턴을 마치면 질병이 표시된 방향으로 환자를 악화시킨다. 확진 전에는 <b>방향(압박 종류)과 크기(경미 ≤6 · 중등 7–12 · 심각 13+)</b>만 보이고, 무엇이 일어났는지는 일어난 뒤에 보인다. 나빠지는 방식이 단서가 되면 <b>경과 관찰</b> 소견으로 남는다. <b>안정화</b>는 그 악화를 먼저 막고 내 턴이 시작되면 사라진다.
           </p>
         </section>
         <section>
@@ -279,7 +330,7 @@ export function HelpOverlay({ onClose }: { onClose: () => void }) {
         <section>
           <h4>반응과 원인균</h4>
           <p>
-            <span className="gchip g-key">특효</span> ×2 <span className="gchip g-weak">우수</span> ×1.5 <span className="gchip g-normal">보통</span> <span className="gchip g-resistant">저하</span> ×0.5 <span className="gchip g-immune">무효</span> <span className="gchip g-harmful">금기</span> 악화. 원인균을 모른 채 쓴 항생제는 내성을 키운다. 배양은 그람 염색을 바로, 배양·감수성을 2턴 뒤에 준다.
+            <span className="gchip g-key">특효</span> ×2 <span className="gchip g-weak">우수</span> ×1.5 <span className="gchip g-normal">보통</span> <span className="gchip g-resistant">저하</span> ×0.5 <span className="gchip g-immune">무효</span> <span className="gchip g-harmful">금기</span> 악화. 원인균을 모른 채 쓴 항생제는 내성을 키운다. 배양은 그람 염색을 바로, 배양·감수성을 2턴 뒤에 준다. 전투가 끝나도 배양은 자라 다음 전투에서 결과가 오고, <b>미생물 기록</b>(배너)에 남는다. 광범위·경험적 항생제는 <b>선택 압력</b>을 쌓아 이후 감염을 내성균 쪽으로 기울이고, 원인균을 확인한 뒤 범위 축소가 그것을 줄인다.
           </p>
         </section>
         <section>

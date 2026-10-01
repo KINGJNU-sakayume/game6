@@ -1,6 +1,6 @@
 // 결정 지표(텔레메트리). 승률만이 아니라 "결정이 생기는가"를 잰다.
 // 모든 판정은 플레이어 정보(EnemyView, 교과서)로 한다. 진실을 쓰는 지표(작업 진단 정확도)는 전투가 끝난 뒤 통계에서만 읽는다.
-import { cardDef, cardTextbook, contextRelevance, isPlayable, isTreatmentCard, legalActions, newRun, step, visibleEnemyInfo } from "../core";
+import { cardDef, cardTextbook, contextRelevance, isPlayable, isTreatmentCard, legalActions, newRun, scoreDifferential, step, visibleEnemyInfo } from "../core";
 import type { Action, GameEvent, GameState } from "../core";
 
 export interface RunMetrics {
@@ -27,7 +27,25 @@ export interface RunMetrics {
   plausibleSum: number;
   choicePoints: number;
   choiceOptionsSum: number;
+  /** 감별 대상이 둘 이상인 문제 수, 그중 검사 하나로 강력 의심에 이른 수 */
+  ddxProblems: number;
+  strongAfterOne: number;
+  strongReached: number;
+  /** 작업 진단을 한 번 이상 바꾼 전투 */
+  combatsWithRevision: number;
+  finalPressure: number;
+  lateCultures: number;
+  /** 작업 진단이 있을 때 투약 오더에서 고른 선택지의 위치 (0 = 맨 위) */
+  medOrderPicks: Record<number, number>;
+  /** 감별 대상이 둘 이상인 일반 전투: 검사 없이 끝낸 전투와 검사한 전투의 활력 손실 */
+  blindLoss: number[];
+  investigatedLoss: number[];
   stats: GameState["run"]["stats"];
+}
+
+/** 검사로 얻은 소견인가 (공통 활력 징후·경과 소견·치료 반응 제외) */
+function isInvestigation(ch: string, neutral?: boolean): boolean {
+  return !neutral && ch !== "course" && !ch.startsWith("rx:");
 }
 
 /** 치료 카드가 지금 감별 목록의 어떤 가설에도 듣지 않는가 (플레이어 정보) */
@@ -89,8 +107,22 @@ export function runWithMetrics(seed: string, choose: (s: GameState) => Action, m
     plausibleSum: 0,
     choicePoints: 0,
     choiceOptionsSum: 0,
+    ddxProblems: 0,
+    strongAfterOne: 0,
+    strongReached: 0,
+    combatsWithRevision: 0,
+    finalPressure: 0,
+    lateCultures: 0,
+    medOrderPicks: {},
+    blindLoss: [],
+    investigatedLoss: [],
     stats: s.run.stats,
   };
+  // 전투 하나의 감별 기록: 문제별 검사 수와 처음 강력 의심에 이른 시점의 검사 수
+  let ddx = new Map<string, { inv: number; strongAt?: number }>();
+  let revisedThisCombat = false;
+  let anyInvestigation = false;
+  let multiCombat = false;
   let lastTurn = -1;
   let combatStartVit = 0;
   let combatAct = 1;
@@ -136,13 +168,50 @@ export function runWithMetrics(seed: string, choose: (s: GameState) => Action, m
       }
     }
     const a = choose(s);
+    const pend = s.pending;
+    if (pend?.kind === "choose_option" && pend.source === "med_order" && a.type === "choose_option") {
+      const tgt = s.combat?.enemies.find((e) => e.uid === pend.ctx.targetUid);
+      if (tgt?.workingDx) {
+        const p = pend;
+        const idx = p.options.findIndex((o) => o.id === a.optionId);
+        m.medOrderPicks[idx] = (m.medOrderPicks[idx] ?? 0) + 1;
+      }
+    }
     const before = s;
     const r = step(s, a);
     s = r.state;
     observeEvents(m, before, s, r.events);
+    for (const ev of r.events) if (ev.type === "diagnosis_committed" && ev.revised) revisedThisCombat = true;
+    const cs = s.combat ?? (before.phase === "combat" ? before.combat : undefined);
+    if (cs) {
+      for (const e of cs.enemies) {
+        if (e.hypotheses.length < 2) continue;
+        multiCombat = true;
+        const rec = ddx.get(e.uid) ?? { inv: 0 };
+        rec.inv = e.observations.filter((o) => isInvestigation(o.channel, o.neutral)).length;
+        if (rec.inv > 0) anyInvestigation = true;
+        if (rec.strongAt === undefined && scoreDifferential(e).some((h) => h.level === "strong" && !h.ruledOut)) rec.strongAt = rec.inv;
+        if ((e.dxChanges ?? 0) > 0) revisedThisCombat = true;
+        ddx.set(e.uid, rec);
+      }
+    }
     if (before.phase === "combat" && s.phase !== "combat") {
       m.combats += 1;
-      m.combatLoss.push({ act: combatAct, kind: combatKind, loss: combatStartVit - s.run.vitality, turns: before.combat?.turn ?? 0 });
+      const loss = combatStartVit - s.run.vitality;
+      m.combatLoss.push({ act: combatAct, kind: combatKind, loss, turns: before.combat?.turn ?? 0 });
+      for (const rec of ddx.values()) {
+        m.ddxProblems += 1;
+        if (rec.strongAt !== undefined) {
+          m.strongReached += 1;
+          if (rec.strongAt <= 1) m.strongAfterOne += 1;
+        }
+      }
+      if (revisedThisCombat) m.combatsWithRevision += 1;
+      if (multiCombat && combatKind === "normal") (anyInvestigation ? m.investigatedLoss : m.blindLoss).push(loss);
+      ddx = new Map();
+      revisedThisCombat = false;
+      anyInvestigation = false;
+      multiCombat = false;
       lastTurn = -1;
     }
     if (s.phase === "combat" && before.phase !== "combat") lastTurn = -1;
@@ -152,11 +221,13 @@ export function runWithMetrics(seed: string, choose: (s: GameState) => Action, m
   m.floors = s.run.stats.floorsClimbed;
   m.deathCause = s.run.stats.deathCause;
   m.stats = s.run.stats;
+  m.finalPressure = s.run.micro?.pressure ?? 0;
   return m;
 }
 
 function observeEvents(m: RunMetrics, before: GameState, after: GameState, events: GameEvent[]): void {
   for (const ev of events) {
+    if (ev.type === "micro_result" && ev.late) m.lateCultures += 1;
     if (ev.type === "card_played") {
       m.playedIds.add(ev.cardId);
       if (cardDef(ev.cardId).zone === "formulary") m.usedFormulary.add(ev.cardId);
@@ -182,6 +253,8 @@ export interface Aggregate {
   actReach: Record<number, number>;
   avgFloors: number;
   deaths: Record<string, number>;
+  /** 막별 사망 원인 */
+  deathsByAct: Record<string, Record<string, number>>;
   combatLossByAct: Record<string, { mean: number; n: number; turns: number }>;
   unusableHandPct: number;
   deadTreatmentDrawPct: number;
@@ -204,6 +277,21 @@ export interface Aggregate {
   findingsPerCombat: number;
   plausiblePerTurn: number;
   optionsPerChoice: number;
+  strongAfterOnePct: number;
+  strongReachedPct: number;
+  revisionCombatPct: number;
+  problemsRevisedPct: number;
+  firstDxAccuracy: number;
+  firstDxTurn: number;
+  act3TargetedPct: number;
+  act3Abx: number;
+  runsWithDeescalation: number;
+  deescalations: number;
+  meanPressure: number;
+  lateCultureResults: number;
+  medOrderPicks: Record<number, number>;
+  blindLoss: { mean: number; n: number };
+  investigatedLoss: { mean: number; n: number };
 }
 
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length);
@@ -213,9 +301,14 @@ export function aggregate(runs: RunMetrics[]): Aggregate {
   const combats = sum((r) => r.combats);
   const actReach: Record<number, number> = {};
   const deaths: Record<string, number> = {};
+  const deathsByAct: Record<string, Record<string, number>> = {};
   for (const r of runs) {
     actReach[r.act] = (actReach[r.act] ?? 0) + 1;
-    if (!r.won) deaths[r.deathCause ?? "?"] = (deaths[r.deathCause ?? "?"] ?? 0) + 1;
+    if (!r.won) {
+      deaths[r.deathCause ?? "?"] = (deaths[r.deathCause ?? "?"] ?? 0) + 1;
+      const a = (deathsByAct[`${r.act}막`] ??= {});
+      a[r.deathCause ?? "?"] = (a[r.deathCause ?? "?"] ?? 0) + 1;
+    }
   }
   const byAct: Record<string, number[]> = {};
   const turnsByAct: Record<string, number[]> = {};
@@ -251,6 +344,7 @@ export function aggregate(runs: RunMetrics[]): Aggregate {
     actReach,
     avgFloors: sum((r) => r.floors) / Math.max(1, runs.length),
     deaths,
+    deathsByAct,
     combatLossByAct,
     unusableHandPct: sum((r) => r.unusableCards) / Math.max(1, sum((r) => r.handCards)),
     deadTreatmentDrawPct: sum((r) => r.deadTreatmentDraws) / Math.max(1, sum((r) => r.treatmentDraws)),
@@ -273,6 +367,24 @@ export function aggregate(runs: RunMetrics[]): Aggregate {
     findingsPerCombat: st((s) => s.findingsRevealed) / Math.max(1, combats),
     plausiblePerTurn: sum((r) => r.plausibleSum) / Math.max(1, sum((r) => r.decisionPoints)),
     optionsPerChoice: sum((r) => r.choiceOptionsSum) / Math.max(1, sum((r) => r.choicePoints)),
+    strongAfterOnePct: sum((r) => r.strongAfterOne) / Math.max(1, sum((r) => r.ddxProblems)),
+    strongReachedPct: sum((r) => r.strongReached) / Math.max(1, sum((r) => r.ddxProblems)),
+    revisionCombatPct: sum((r) => r.combatsWithRevision) / Math.max(1, combats),
+    problemsRevisedPct: st((s) => s.problemsRevised ?? 0) / Math.max(1, st((s) => s.commits)),
+    firstDxAccuracy: st((s) => s.firstDxCorrect ?? 0) / Math.max(1, st((s) => s.firstDx ?? 0)),
+    firstDxTurn: st((s) => s.firstDxTurnSum ?? 0) / Math.max(1, st((s) => s.firstDx ?? 0)),
+    act3TargetedPct: st((s) => s.act3AbxTargeted ?? 0) / Math.max(1, st((s) => (s.act3AbxTargeted ?? 0) + (s.act3AbxEmpiric ?? 0))),
+    act3Abx: st((s) => (s.act3AbxTargeted ?? 0) + (s.act3AbxEmpiric ?? 0)),
+    runsWithDeescalation: sum((r) => (r.stats.deescalations > 0 ? 1 : 0)),
+    deescalations: st((s) => s.deescalations),
+    meanPressure: sum((r) => r.finalPressure) / Math.max(1, runs.length),
+    lateCultureResults: sum((r) => r.lateCultures),
+    medOrderPicks: runs.reduce((acc, r) => {
+      for (const [k, v] of Object.entries(r.medOrderPicks)) acc[Number(k)] = (acc[Number(k)] ?? 0) + v;
+      return acc;
+    }, {} as Record<number, number>),
+    blindLoss: { mean: mean(runs.flatMap((r) => r.blindLoss)), n: sum((r) => r.blindLoss.length) },
+    investigatedLoss: { mean: mean(runs.flatMap((r) => r.investigatedLoss)), n: sum((r) => r.investigatedLoss.length) },
   };
 }
 
@@ -281,6 +393,10 @@ export function formatAggregate(a: Aggregate, top = 25): string {
   const lines: string[] = [];
   lines.push(`런 ${a.n}회 · 승률 ${pct(a.winRate)} · 평균 도달 층 ${a.avgFloors.toFixed(1)} · 도달 막 ${JSON.stringify(a.actReach)}`);
   lines.push(`사망 원인: ${Object.entries(a.deaths).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ${v}`).join(", ")}`);
+  for (const [act, d] of Object.entries(a.deathsByAct).sort()) {
+    const tot = Object.values(d).reduce((x, y) => x + y, 0);
+    lines.push(`  ${act} 사망 ${tot}: ${Object.entries(d).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ${v}`).join(", ")}`);
+  }
   lines.push("전투당 활력 손실:");
   for (const [k, v] of Object.entries(a.combatLossByAct).sort()) lines.push(`  ${k.padEnd(12)} ${v.mean.toFixed(1).padStart(5)} (n=${v.n}, 평균 ${v.turns.toFixed(1)}턴)`);
   lines.push("── 결정 지표 ──");
@@ -294,10 +410,17 @@ export function formatAggregate(a: Aggregate, top = 25): string {
   lines.push(`턴당 그럴듯한 행동 수                   ${a.plausiblePerTurn.toFixed(2)}`);
   lines.push(`전투당 얻은 소견                        ${a.findingsPerCombat.toFixed(1)}`);
   lines.push(`첫 작업 진단 정확도                     ${pct(a.commitAccuracy)} (전투당 ${a.commitsPerCombat.toFixed(2)}회, 평균 ${a.turnsBeforeCommit.toFixed(2)}턴째)`);
+  lines.push(`처음 생긴 작업 진단(확진 자동 포함) 정확도 ${pct(a.firstDxAccuracy)} (평균 ${a.firstDxTurn.toFixed(2)}턴째, 감별 대상 둘 이상)`);
   lines.push(`전투 종료 시 작업 진단 정확도            ${pct(a.finalDxAccuracy)}`);
-  lines.push(`작업 진단 변경 / 전투                   ${a.revisionsPerCombat.toFixed(2)}`);
+  lines.push(`작업 진단 변경 / 전투                   ${a.revisionsPerCombat.toFixed(2)} (작업 진단이 바뀐 전투 ${pct(a.revisionCombatPct)}, 정한 뒤 바뀐 문제 ${pct(a.problemsRevisedPct)})`);
+  lines.push(`검사 하나로 강력 의심에 이른 문제         ${pct(a.strongAfterOnePct)} (강력 의심에 이른 문제 ${pct(a.strongReachedPct)}, 감별 대상 둘 이상)`);
+  lines.push(`검사 없이 끝낸 일반 전투 활력 손실       ${a.blindLoss.mean.toFixed(1)} (n=${a.blindLoss.n}) · 검사한 전투 ${a.investigatedLoss.mean.toFixed(1)} (n=${a.investigatedLoss.n})`);
   lines.push(`항생제: 경험적 ${pct(a.empiricPct)} / 표적 ${pct(1 - a.empiricPct)} (투여 ${a.abxUses})`);
-  lines.push(`범위 축소 / 전투                        ${a.deescalationsPerCombat.toFixed(2)}`);
+  lines.push(`범위 축소 / 전투                        ${a.deescalationsPerCombat.toFixed(2)} (범위 축소 ${a.deescalations}회, 범위 축소가 있던 런 ${a.runsWithDeescalation}/${a.n})`);
+  lines.push(`3막 감염 전투 항생제: 표적 ${pct(a.act3TargetedPct)} (투여 ${a.act3Abx})`);
+  lines.push(`다음 전투에서 도착한 배양 결과 / 런       ${(a.lateCultureResults / Math.max(1, a.n)).toFixed(2)} · 런 끝 선택 압력 평균 ${a.meanPressure.toFixed(1)}`);
+  const mo = Object.values(a.medOrderPicks).reduce((x, y) => x + y, 0);
+  lines.push(`작업 진단이 있을 때 투약 오더 선택 위치   ${[0, 1, 2, 3].map((i) => `${i + 1}번째 ${pct((a.medOrderPicks[i] ?? 0) / Math.max(1, mo))}`).join(" · ")} (n=${mo})`);
   lines.push(`처방 반납 / 전투                        ${a.returnsPerCombat.toFixed(2)}`);
   lines.push(`기대 반응 없음(치료 실패 소견) / 전투     ${a.noResponsePerCombat.toFixed(2)}`);
   lines.push(`선택지 분포 (상위 ${top}):`);

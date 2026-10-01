@@ -159,7 +159,10 @@ export function Differential({ view, compact }: { view: EnemyView; compact?: boo
                   )}
                 </>
               ) : (
-                <>원인균을 모르고 쓴 항생제는 내성을 키운다. 배양 검사로 확인한다. 후보는 감별 목록과 그람 염색, 치료 반응으로 좁혀진다.</>
+                <>
+                  원인균을 모르고 쓴 항생제는 내성을 키운다. 배양 검사로 확인한다. 후보는 감별 목록과 그람 염색, 치료 반응으로 좁혀진다.
+                  {view.organism.chart && <div className="tip-sub">환자 차트의 앞선 배양: {view.organism.chart.join(", ")} — 같은 균일 가능성이 높다</div>}
+                </>
               )}
             </>,
             "top",

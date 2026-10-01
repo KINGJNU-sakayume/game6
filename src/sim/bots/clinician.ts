@@ -5,6 +5,7 @@ import {
   cardDef,
   cardTextbook,
   channelValue,
+  contextRelevance,
   commitCheck,
   db,
   diseaseDef,
@@ -61,8 +62,11 @@ function stabilityOf(ops: EffectOp[]): number {
 
 export class ClinicianBot {
   private rng: RngState;
-  constructor(seed: string, _cap = 0) {
+  /** 비교용: 검사를 하지 않고(진단 카드·검사 선택지를 쓰지 않고) 치료만 하는 봇 */
+  private blind: boolean;
+  constructor(seed: string, _cap = 0, opts: { blind?: boolean } = {}) {
     this.rng = deriveStream(`${seed}:sim-clinician`);
+    this.blind = !!opts.blind;
   }
 
   // ───────────── 전투 ─────────────
@@ -74,7 +78,7 @@ export class ClinicianBot {
   private threat(state: GameState): number {
     let t = 0;
     for (const v of this.views(state)) {
-      t += v.intents[0]?.total ?? 0;
+      t += v.intents[0]?.estimate ?? 0;
       for (const cd of v.countdowns) if (cd.turnsLeft <= 1) t += 18;
     }
     return t;
@@ -89,8 +93,9 @@ export class ClinicianBot {
       const live = v.hypotheses.filter((h) => h.level !== "excluded");
       const second = [...live].sort((a, b) => b.score - a.score)[1];
       const margin = lead.score - (second?.score ?? -99);
-      const urgent = this.threat(state) >= state.run.vitality * 0.35 || c.turn >= 4;
-      const ready = lead.level === "strong" || (lead.level === "suspected" && (margin >= 2 || urgent)) || (urgent && margin >= 2);
+      // 첫 턴에는 강력 의심일 때만 정한다. 둘째 턴부터(또는 위협이 클 때)는 치료를 늦출 수 없으므로 앞선 가설로 정한다
+      const urgent = this.threat(state) >= state.run.vitality * 0.35 || c.turn >= 2;
+      const ready = lead.level === "strong" || (urgent && margin >= 1 && lead.score >= 1);
       if (!ready) continue;
       if (v.workingDx?.diseaseId === lead.diseaseId) continue;
       if (v.workingDx) {
@@ -146,11 +151,16 @@ export class ClinicianBot {
     const stab = stabilityOf(def.effects);
     const stabVal = Math.min(stab, need) * 1.1;
     if (def.kind === "side_effect") return { value: 3 };
+    if (this.blind && def.kind === "diagnostic") return { value: -Infinity };
     const targets = c.enemies.filter((e) => !e.cured);
     let best = { value: -Infinity, target: undefined as string | undefined };
     for (const e of def.target === "enemy" ? targets : [undefined]) {
       let v = stabVal;
       const view = e ? visibleEnemyInfo(state, e.uid)! : undefined;
+      // 항생제 관리: 감염 가설이 있고 원인균을 모르면 항생제보다 배양을 먼저
+      if (def.id === "culture" && view && !this.blind && view.organism.relevant && !view.organism.known && view.pending.length === 0) v += 10;
+      // 원인균을 확인했고 광범위 항생제가 들어가고 있으면 범위 축소
+      if (this.canDeescalate(state) && def.effects.some((o) => o.op === "choose_option" && o.options.some((x) => x.id === "deescalate" || x.id === "meds"))) v += 14;
       if (def.kind === "diagnostic" && e) v += this.diagValue(state, def, e);
       else if (def.effects.some((o) => o.op === "discover") && view) {
         const pool = (def.effects.find((o) => o.op === "discover") as Extract<EffectOp, { op: "discover" }>).pool;
@@ -200,11 +210,17 @@ export class ClinicianBot {
     return { type: "end_turn" };
   }
 
+  private canDeescalate(state: GameState): boolean {
+    const c = state.combat!;
+    return c.activeDrugs.some((d) => d.tags.includes("broad_spectrum")) && c.enemies.some((e) => !e.cured && e.organismKnown);
+  }
+
   // ───────────── 결정 ─────────────
 
   private optionValue(state: GameState, o: PendingOption, target: EnemyState | undefined, view: EnemyView | undefined): number {
     const c = state.combat!;
     if (!o.available) return -Infinity;
+    if (this.blind && (o.channel || o.effects.some((e) => e.op === "investigate" || e.op === "investigate_best" || e.op === "culture"))) return -50;
     let v = 0;
     if (o.channel && target) v += channelValue(target, o.channel) * 14 - o.cost * 3;
     // 협진 권고가 손에 쥐여 주는 치료도 처방 선택지처럼 평가
@@ -232,6 +248,9 @@ export class ClinicianBot {
       }
       v -= (def.drug?.sideEffects.length ?? 0) * 1.5;
       if (/정리/.test(o.detail)) v += 6;
+      // 배양 감수성을 알면 그 결과대로 (좁고 잘 듣는 것)
+      const cell = view.organism.antibiogram?.find((x) => x.cardId === given);
+      if (cell) v += cell.grade === "key" || cell.grade === "weak" ? 12 - (def.tags.includes("broad_spectrum") ? 4 : 0) : cell.grade === "normal" ? 2 : -12;
     }
     // 킥커: 여유 오더가 있을 때만
     if (o.cost > 0 && !o.channel) v += c.orders - o.cost >= 1 ? 2 : -6;
@@ -241,7 +260,8 @@ export class ClinicianBot {
     if (o.id === "hold") v += 0;
     if (o.id === "reexam") v += target && target.knowledge < 2 ? 8 : 0;
     if (o.id === "results") v += 6;
-    if (o.id === "deescalate") v += 7;
+    if (o.id === "deescalate") v += this.canDeescalate(state) ? 16 : 2;
+    if (o.effects.some((x) => x.op === "deescalate")) v += this.canDeescalate(state) ? 16 : -2;
     if (o.id === "standard" || o.id === "im" || o.id === "low") v += 3;
     if (!o.channel && !o.cardId && v === 0) v = 1;
     return v;
@@ -267,15 +287,12 @@ export class ClinicianBot {
   private rewardValue(state: GameState, id: string): number {
     const def = cardDef(id);
     if (def.zone === "formulary") {
-      let rel = 0;
+      // 이번 막과 다음 막에서 만날 가능성으로 가중한 쓸모 (콘텐츠의 교과서 역학, 플레이어 정보)
       const act = state.run.act;
-      const diseases = db().diseases.filter((d) => d.act === act || d.act === Math.min(3, act + 1));
-      for (const d of diseases) {
-        const tb = cardTextbook(d.id, def);
-        if (!tb.generic && !tb.harmful && (tb.best === "key" || tb.best === "weak")) rel += 2;
-        else if (!tb.generic && !tb.harmful && tb.best === "normal") rel += 1;
-      }
-      return 4 + rel * 1.5;
+      const acts = act < 3 ? ([act, act + 1] as (1 | 2 | 3)[]) : ([act] as (1 | 2 | 3)[]);
+      const rel = contextRelevance(state, id, acts, act < 3 ? [1, 0.5] : [1]);
+      if (state.run.formulary.some((c) => c.cardId === id)) return 3;
+      return 4 + rel * 0.15;
     }
     const base: Record<string, number> = {
       culture: 11,

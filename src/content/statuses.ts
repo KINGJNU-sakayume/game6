@@ -11,7 +11,7 @@ export const STATUSES = [
   { id: "hypoxia", nameKo: "저산소", owner: "patient", stacking: "intensity", decay: "custom", debuff: true, description: "턴이 시작될 때 오더 −1, 그 후 1 줄어든다. 산소 투여·기관 삽관으로 없앤다." },
   { id: "hypotension", nameKo: "저혈압", owner: "patient", stacking: "intensity", decay: "none", debuff: true, description: "턴이 시작될 때 승압제가 투여 중이 아니면 활력을 스택만큼 잃는다. 수액을 투여하면 1 줄어든다.", medical: { fidelity: "simplified", note: "쇼크의 저관류. 수액과 승압제로 유지한다" } },
   { id: "bleeding_tendency", nameKo: "출혈 경향", owner: "patient", stacking: "intensity", decay: "custom", debuff: true, description: "턴이 시작될 때 항응고제와 항혈소판제가 모두 투여 중이면 활력 −2. 아니면 사라진다.", medical: { fidelity: "accurate", note: "이중 항혈전 요법의 출혈 위험" } },
-  { id: "active_bleeding", nameKo: "활동성 출혈", owner: "enemy", stacking: "intensity", decay: "none", debuff: false, description: "플레이어 턴이 시작될 때마다 환자 활력 −1. 결정적 지혈로 멈춘다.", medical: { fidelity: "simplified", note: "내시경 지혈 전까지 계속되는 출혈" } },
+  { id: "active_bleeding", nameKo: "활동성 출혈", owner: "enemy", stacking: "intensity", decay: "none", debuff: false, description: "플레이어 턴이 시작될 때마다 환자 활력 −1. 결정적 지혈로 멈춘다.", medical: { fidelity: "unverified", note: "v2.0 신규, v2.1에서 DIC에도 씀(v2.0 표시: simplified). 결정적 지혈(내시경) 또는 혈액제제 보충 전까지 계속되는 출혈" } },
   { id: "fatigue", nameKo: "피로", owner: "patient", stacking: "intensity", decay: "custom", debuff: true, description: "전투 첫 턴 오더 −1. 그 후 사라진다." },
 ] satisfies StatusDef[];
 

@@ -5,10 +5,11 @@ import { currentOrganism, findMove, phaseDef, variantDef } from "./disease";
 import { calcPlayerDamage, resistanceStacksFor } from "./damage";
 import { GRADE_PCT, isTreatmentCard, organismsOf, textbook, textbookSummary } from "./textbook";
 import { LEVEL_LABEL, expectedFindings, isResponseChannel, liveHypotheses, pendingChannels, scoreDifferential } from "./evidence";
-import { PRESSURE_LABEL, intentParts, movePressure } from "./enemy-ai";
+import { BAND_LABEL, BAND_RANGE, PRESSURE_LABEL, bandOf, intentParts, moveSignature, displaySig, sigBand, sigKind, visibleEstimate } from "./enemy-ai";
 import { costOf } from "./cards";
 import { canPlay, commitCheck, returnCheck } from "./combat";
 import { combinePct, findEnemy, statusStacks } from "./util";
+import { PRESSURE_CAP_PCT, PRESSURE_PCT } from "./micro";
 import type {
   ArtRegion,
   DamagePreview,
@@ -20,6 +21,7 @@ import type {
   GramClass,
   HypothesisLevel,
   HypothesisPreview,
+  IntentBand,
   IntentPart,
   OrganismId,
   PressureKind,
@@ -29,12 +31,19 @@ import type {
 } from "./types";
 
 export interface IntentView {
-  parts: IntentPart[];
-  moveName?: string;
   pressure: PressureKind;
   pressureLabel: string;
-  /** 예상 활력 손실 합 (공격 값 × 횟수) */
-  total: number;
+  /** 크기 등급 (경미·중등·심각). 확진 전에는 이것만 보인다 */
+  band: IntentBand;
+  bandLabel: string;
+  /** 등급의 활력 손실 범위 문구 ("7–12") */
+  bandRange: string;
+  /** 예상 활력 손실. 확진 전에는 등급 대표값에 보이는 보정만 더한 값, 확진 뒤에는 실제 계산 */
+  estimate: number;
+  /** 확진 뒤에만: 행동 이름과 정확한 내용 */
+  moveName?: string;
+  parts?: IntentPart[];
+  total?: number;
 }
 
 export interface FindingView {
@@ -87,6 +96,8 @@ export interface OrganismView {
   gram?: string;
   candidates: string[];
   antibiogram?: AbxCell[];
+  /** 환자 차트(앞선 배양)에 있는 균 중 이번 원인균 후보에 드는 것 */
+  chart?: string[];
 }
 
 export interface EnemyView {
@@ -179,6 +190,8 @@ function organismView(state: GameState, enemy: EnemyState): OrganismView {
     }
     if (ok) view.candidates.push(organismDef(org)?.nameKo ?? org);
   }
+  const chart = [...new Set((state.run.micro?.results ?? []).map((r) => r.organism).filter((o): o is string => !!o && orgs.has(o)))];
+  if (chart.length) view.chart = chart.map((o) => organismDef(o)?.nameKo ?? o);
   return view;
 }
 
@@ -266,23 +279,28 @@ export function visibleEnemyInfo(state: GameState, uid: Uid): EnemyView | undefi
   const shownIntents = confirmed || enemy.revealNext ? 2 : 1;
   for (const p of enemy.ai.planned.slice(0, shownIntents)) {
     const mv = findMove(enemy, p.moveId);
-    const parts = intentParts(state, enemy, p);
-    const pressure = movePressure(enemy, mv);
-    const iv: IntentView = {
-      parts,
-      pressure,
-      pressureLabel: PRESSURE_LABEL[pressure],
-      total: parts.reduce((a, x) => a + (x.kind === "attack" ? (x.value ?? 0) * (x.hits ?? 1) : 0), 0),
-    };
-    if (confirmed) iv.moveName = mv.nameKo;
-    intents.push(iv);
+    if (confirmed) {
+      const parts = intentParts(state, enemy, p);
+      const total = parts.reduce((a, x) => a + (x.kind === "attack" ? (x.value ?? 0) * (x.hits ?? 1) : 0), 0);
+      const pressure = sigKind(displaySig(moveSignature(enemy, mv)));
+      const band = bandOf(total);
+      intents.push({ pressure, pressureLabel: PRESSURE_LABEL[pressure], band, bandLabel: BAND_LABEL[band], bandRange: BAND_RANGE[band], estimate: total, moveName: mv.nameKo, parts, total });
+      continue;
+    }
+    // 확진 전: 경과 대본이 고른 칸(종류·등급)과 보이는 보정만. 실제 질병의 수치·효과는 쓰지 않는다
+    const sig = p.sig ?? displaySig(moveSignature(enemy, mv));
+    const pressure = sigKind(sig);
+    const est = visibleEstimate(state, enemy, sigBand(sig));
+    const band = bandOf(est);
+    intents.push({ pressure, pressureLabel: PRESSURE_LABEL[pressure], band, bandLabel: BAND_LABEL[band], bandRange: BAND_RANGE[band], estimate: est });
   }
   const live = liveHypotheses(enemy);
   const cats = new Set(live.map((h) => diseaseDef(h.diseaseId).category));
   const view: EnemyView = {
     uid: enemy.uid,
     index: c.enemies.indexOf(enemy),
-    tier: def.tier,
+    // 등급은 인카운터 종류로 (질병마다 다르면 정답이 드러난다)
+    tier: c.kind,
     knowledge: k,
     title: confirmed ? def.nameKo : pres.complaint,
     complaint: pres.complaint,
@@ -296,7 +314,8 @@ export function visibleEnemyInfo(state: GameState, uid: Uid): EnemyView | undefi
     }),
     intents,
     countdowns: enemy.countdowns.map((cd) => ({ turnsLeft: cd.turnsLeft, label: confirmed ? findMove(enemy, cd.moveId).nameKo : "합병증 예고" })),
-    resistance: Object.entries(enemy.acquiredResistance)
+    // 획득 내성은 원인균의 성질이다: 원인균을 확인하거나 확진하기 전에는 보이지 않는다 (환자 쪽 기록은 미생물 기록에 있다)
+    resistance: (confirmed || enemy.organismKnown ? Object.entries(enemy.acquiredResistance) : [])
       .filter(([, n]) => n > 0)
       .map(([tag, n]) => ({ tag, nameKo: tagDef(tag)?.nameKo ?? tag, stacks: n })),
     hypotheses: hypothesisViews(state, enemy),
@@ -311,8 +330,8 @@ export function visibleEnemyInfo(state: GameState, uid: Uid): EnemyView | undefi
   if (cats.size === 1 && live.length > 1) view.category = categoryName([...cats][0]!);
   if (enemy.workingDx) view.workingDx = { diseaseId: enemy.workingDx, nameKo: diseaseDef(enemy.workingDx).nameKo };
   const ph = phaseDef(enemy);
-  if (ph) view.phaseName = ph.nameKo;
   if (confirmed) {
+    if (ph) view.phaseName = ph.nameKo;
     view.confirmedName = def.nameKo;
     view.nameEn = def.nameEn;
     view.passives = def.passiveText ?? [];
@@ -360,7 +379,9 @@ export function previewDamage(state: GameState, cardUid: Uid, targetUid: Uid): D
   const base = typeof op.amount === "number" ? op.amount : 0;
   const hits = op.hits ?? 1;
   const calc = calcPlayerDamage(state, ctx, enemy, base, tags, op.mods);
-  const others = calc.mults.slice(1);
+  // 배율 [등급, 계획, 내성, …]. 내성은 원인균을 알기 전에는 보이지 않는 정보라 미리보기에서 뺀다
+  const resistanceKnown = enemy.knowledge >= 2 || enemy.organismKnown;
+  const others = calc.mults.slice(1).map((m, i) => (i === 1 && !resistanceKnown ? 100 : m));
   const spectrum = def.drug?.spectrum;
   const confirmed = enemy.knowledge >= 2;
   // 범용 여부도 감별 목록으로 판단한다 (숨은 질병의 판정을 쓰면 정답이 샌다)
@@ -455,3 +476,49 @@ export function gradeLabel(g: Grade | "generic" | "not_indicated" | "varies" | "
 }
 
 export { resistanceStacksFor, statusStacks };
+
+// ───────────────────────── 미생물 기록 (v2.1) ─────────────────────────
+
+export interface MicroEntryView {
+  specimen: string;
+  source: string;
+  where: string;
+  text: string;
+  organism?: string;
+  antibiogram?: AbxCell[];
+}
+
+export interface MicroView {
+  pressure: number;
+  /** 선택 압력이 이후 감염의 내성균(ESBL·MRSA·녹농균) 변이 가중치에 더하는 % */
+  pressurePct: number;
+  pending: { specimen: string; source: string; where: string }[];
+  results: MicroEntryView[];
+  /** 차트에 있는 원인균 (집락): 같은 균의 이후 감염 가능성이 오른다 */
+  colonized: string[];
+}
+
+const PLACE_KO: Record<number, string> = { 1: "응급실", 2: "병동", 3: "중환자실" };
+
+/** 환자 차트의 미생물 기록. 모두 플레이어가 이미 본 결과와 자기 항생제 이력이다 */
+export function microView(state: GameState): MicroView {
+  const m = state.run.micro ?? { pending: [], results: [], pressure: 0 };
+  const where = (e: { act: number; floor: number }) => `${e.act}막 ${PLACE_KO[e.act] ?? ""} ${e.floor}층`;
+  const orgs = new Set<string>();
+  const results = m.results.map((r) => {
+    const v: MicroEntryView = { specimen: channelDef(r.channel).nameKo, source: r.source, where: where(r), text: findingDef(r.finding).text };
+    if (r.organism) {
+      orgs.add(r.organism);
+      v.organism = organismDef(r.organism)?.nameKo ?? r.organism;
+      v.antibiogram = ABX_SHORT.map(([id, short]) => ({ cardId: id, short, grade: cardDef(id).drug?.spectrum?.[r.organism!] ?? "immune" }));
+    }
+    return v;
+  });
+  return {
+    pressure: m.pressure,
+    pressurePct: Math.min(PRESSURE_CAP_PCT, m.pressure * PRESSURE_PCT),
+    pending: m.pending.map((p) => ({ specimen: channelDef(p.channel).nameKo, source: p.source, where: where(p) })),
+    results,
+    colonized: [...orgs].map((o) => organismDef(o)?.nameKo ?? o),
+  };
+}

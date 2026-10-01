@@ -220,3 +220,19 @@ describe("처방 반납 유물", () => {
     expect(s.run.stats.returns).toBe(2);
   });
 });
+
+describe("v2.1 표적 투약 오더: 1차·대안·보험", () => {
+  it("작업 진단이 있으면 세 역할로 고르고, 선택지마다 무엇을 맞바꾸는지 적는다", () => {
+    let s = makeCombat({
+      hand: ["med_order"],
+      formulary: ["ceftriaxone", "levofloxacin", "clarithromycin", "pip_tazo", "acetaminophen", "saline"],
+      enemies: [{ disease: "cap", variant: "pneumococcus", hypotheses: ["cap", "pyelo", "cellulitis"], workingDx: "cap" }],
+    });
+    s = play(s, "med_order").state;
+    const p = s.pending as { options: { id: string; detail: string }[] };
+    expect(p.options).toHaveLength(3);
+    expect(p.options[0]!.detail).toContain("작업 진단");
+    // 둘째·셋째는 대가가 적은 대안이거나, 작업 진단이 틀렸을 때의 보험이거나, 보존적 치료다
+    expect(p.options.slice(1).every((o) => /대안|차선|보험|보존적/.test(o.detail))).toBe(true);
+  });
+});

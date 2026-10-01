@@ -62,6 +62,22 @@ export type PressureKind =
   | "worsening"
   | "complication";
 
+/** 의도 크기 등급 (확진 전에는 정확한 수치 대신 이것만 보인다). 경미 ≤6 · 중등 7–12 · 심각 ≥13 */
+export type IntentBand = "mild" | "moderate" | "severe";
+
+/**
+ * 내원 양상의 경과 대본. 감별 대상이 둘 이상인 문제는 의도(압박 종류·크기)를 이 대본이 정하고,
+ * 실제 질병은 그 칸에 맞는 자기 행동을 낸다. 그래서 보이는 의도의 순서가 숨은 정답과 무관하다.
+ * 칸 이름은 "종류:등급" (합병증 예고는 "complication:mild@턴").
+ */
+export interface CourseScript {
+  opening?: string[];
+  weights: Record<string, number>;
+  noRepeat?: string[];
+  /** 조건은 플레이어도 아는 것만 (turnAtLeast, noCountdown) */
+  rules?: { when: Condition; sig: string; once?: boolean }[];
+}
+
 // ───────────────────────── 값·조건·명령 ─────────────────────────
 
 export type TargetSel = "patient" | "target" | "all_enemies" | "random_enemy" | "self" | "source";
@@ -225,6 +241,7 @@ export type EffectOp =
   | { op: "card_played"; cardUid: Uid }
   | { op: "finish_card"; cardUid: Uid }
   | { op: "purge_self"; cardUid: Uid }
+  | { op: "course_finding"; finding: FindingId }
   | { op: "phase"; name: TurnPhase; enemyUid?: Uid };
 
 export type TurnPhase =
@@ -272,7 +289,7 @@ export interface KeywordDef {
 
 // ── 근거(소견) 체계 ──
 
-export type ChannelGroup = "vitals" | "history" | "exam" | "lab" | "bedside" | "imaging" | "micro";
+export type ChannelGroup = "vitals" | "history" | "exam" | "lab" | "bedside" | "imaging" | "micro" | "course";
 export type GramClass = "gpc" | "gnr" | "none";
 
 /** 검사 경로 하나 (병력의 한 갈래, 진찰 부위, 검사 항목) */
@@ -311,6 +328,12 @@ export interface PresentationDef {
   burden?: [number, number];
   /** 행동에 압박 종류가 없을 때 쓰는 기본값 (실제 질병 분류로 추정하지 않는다) */
   pressure?: PressureKind;
+  /** 내원 즉시 보이는 활력 징후. 감별 대상 모두가 같은 모습으로 온다 (채점하지 않는다) */
+  vitals?: FindingId;
+  /** 감별 대상이 둘 이상이면 필수: 보이는 의도의 경과 대본 */
+  course?: CourseScript;
+  /** 감별 대상 조합의 의학적 근거 (소유자 검토용) */
+  medical?: MedicalNote;
 }
 
 export interface RecommendationDef {
@@ -419,6 +442,8 @@ export interface MoveDef {
   hitsRange?: [number, number];
   pressure?: PressureKind;
   effects: EffectOp[];
+  /** 이 행동이 일어난 뒤 관찰되는 경과 소견 (course 경로, 가중치 ≤2). 나빠지는 방식이 곧 근거가 된다 */
+  course?: FindingId;
 }
 
 export interface AiPattern {
@@ -440,6 +465,8 @@ export interface PhaseDef {
   moves?: MoveDef[];
   ai?: AiPattern;
   onEnter?: EffectOp[];
+  /** 이 단계로 넘어갈 때 관찰되는 경과 소견 */
+  course?: FindingId;
 }
 
 export interface VariantDef {
@@ -644,6 +671,8 @@ export interface StatusStack {
 export interface PlannedMove {
   moveId: MoveId;
   hits?: number;
+  /** 경과 대본이 고른 칸 ("종류:등급"). 화면의 의도는 이것만 쓴다 */
+  sig?: string;
 }
 
 /** 얻은 소견 하나. rx: 경로는 치료 반응 */
@@ -654,6 +683,8 @@ export interface Observation {
   /** 치료 반응 관찰이면 그 치료의 태그·카드 (교과서 예상 반응을 계산하는 데 쓴다) */
   cardId?: CardId;
   tags?: Tag[];
+  /** 채점하지 않는 관찰 (내원 양상 공통 활력 징후) */
+  neutral?: boolean;
 }
 
 export interface EnemyState {
@@ -667,10 +698,15 @@ export interface EnemyState {
   observations: Observation[];
   workingDx?: DiseaseId;
   workingDxTurn?: number;
+  /** 텔레메트리: 이 문제에서 작업 진단을 처음 정했는가, 그 뒤 몇 번 바뀌었는가 (배제 후 다시 정함·확진으로 바뀜 포함) */
+  dxCommitted?: boolean;
+  dxChanges?: number;
   /** 배양으로 원인균이 확인되었는가 */
   organismKnown: boolean;
   /** 엔진 진실: 이 환자에게서 비전형으로 나타나는 소견 하나 */
   atypical?: { channel: ChannelId; finding: FindingId };
+  /** 엔진 진실: 두 번째(약한, 가중치 ≤1) 비전형 소견 */
+  atypical2?: { channel: ChannelId; finding: FindingId };
   severity: number;
   maxSeverity: number;
   stability: number;
@@ -680,7 +716,7 @@ export interface EnemyState {
   acquiredResistance: Record<Tag, number>;
   resistanceFraction: number;
   phase: number;
-  ai: { history: MoveId[]; planned: PlannedMove[]; planIndex: number; usedOnce: MoveId[] };
+  ai: { history: MoveId[]; planned: PlannedMove[]; planIndex: number; usedOnce: MoveId[]; /** 실행된 의도 칸 (대본용) */ sigs?: string[] };
   countdowns: { moveId: MoveId; turnsLeft: number }[];
   revealNext: boolean;
   planBonus: number;
@@ -882,14 +918,44 @@ export interface RunStats {
   commitsCorrect: number;
   revisions: number;
   commitTurnSum: number;
+  /** 문제마다 처음 작업 진단이 생긴 때(플레이어가 정했거나 확진으로 자동): 수·맞은 수·턴 합 */
+  firstDx?: number;
+  firstDxCorrect?: number;
+  firstDxTurnSum?: number;
+  /** 작업 진단이 한 번이라도 바뀐 문제 수 (플레이어 변경, 배제 뒤 다시 정함, 확진으로 교체) */
+  problemsRevised: number;
   /** 전투가 끝났을 때 작업 진단이 있던 문제 수와 그중 맞은 수 */
   finalDx: number;
   finalDxCorrect: number;
   abxEmpiric: number;
   abxTargeted: number;
   deescalations: number;
+  /** 3막 감염 전투의 항생제 투여 (경험적·표적) */
+  act3AbxEmpiric?: number;
+  act3AbxTargeted?: number;
   returns: number;
   noResponse: number;
+}
+
+/** 미생물 기록의 배양 한 건 (환자의 차트: 전투가 끝나도 남는다) */
+export interface MicroEntry {
+  channel: ChannelId;
+  finding: FindingId;
+  organism?: OrganismId;
+  /** 어느 문제에서 받은 검체인가 (플레이어가 본 이름: 주호소 또는 확진명) */
+  source: string;
+  act: number;
+  floor: number;
+}
+
+/** 런 단위 미생물 기록 (v2.1). 모두 플레이어가 아는 환자 이력이다 */
+export interface MicroRecord {
+  /** 아직 배양 중인 검체: 다음 전투에서 결과가 나온다 */
+  pending: MicroEntry[];
+  /** 나온 결과: 원인균과 감수성은 런 끝까지 차트에 남는다 */
+  results: MicroEntry[];
+  /** 선택 압력: 광범위 항생제와 원인균을 모르고 쓴 항생제가 쌓는다. 이후 감염의 내성균 확률을 올린다 */
+  pressure: number;
 }
 
 export interface RunState {
@@ -915,6 +981,8 @@ export interface RunState {
   stats: RunStats;
   restDone?: boolean;
   seenEvents: EventId[];
+  /** v2.1 미생물 기록 (이전 저장에는 없을 수 있다) */
+  micro?: MicroRecord;
 }
 
 export type Phase = "map" | "combat" | "reward" | "shop" | "rest" | "event" | "boss_relic" | "gameover" | "victory";
@@ -1005,7 +1073,9 @@ export type GameEvent =
   | { type: "resistance_up"; target: Uid; tag: Tag; stacks: number }
   | { type: "dur_blocked"; ruleId: string }
   | { type: "act_changed"; act: number }
-  | { type: "reward_offered" };
+  | { type: "reward_offered" }
+  | { type: "micro_result"; channel: ChannelId; finding: FindingId; source: string; late: boolean }
+  | { type: "selection_pressure"; delta: number; total: number };
 
 /** 치료 반응의 분류: 좋음(특효·우수) · 부분(보통·저하) · 없음(무효·적응증 아님) · 악화(금기) */
 export type ResponseClass = "good" | "partial" | "none" | "worse";

@@ -1,30 +1,47 @@
 // 내원 양상. 한 문제는 주호소 하나로 시작하고, 실제 질병은 감별 대상 중에서 가중치로 뽑아 숨긴다.
 // 질병 부담 범위를 내원 양상 단위로 두는 이유: 질병마다 다르면 숫자만 보고 진단이 드러난다.
-import type { PresentationDef } from "../core/types";
+import type { CourseScript, PresentationDef } from "../core/types";
 
-export const PRESENTATIONS = [
+// 경과 대본 (v2.1): 감별 대상이 여럿이면 보이는 의도(압박 종류·크기 등급)를 내원 양상이 정한다.
+// 후보 질병은 칸마다 자기 행동을 낸다. 효과와 수치는 등급 안에서 달라도 된다(병의 경과는 실제로 다르다).
+/** 흔한 틀: 주 압박 중등 · 주 압박 경미 · 병세 진행 경미 */
+const basic = (kind: string, opening?: string): CourseScript => ({
+  ...(opening ? { opening: [opening] } : {}),
+  weights: { [`${kind}:moderate`]: 45, [`${kind}:mild`]: 30, "worsening:mild": 25 },
+  noRepeat: ["worsening:mild"],
+});
+
+export const PRESENTATIONS: PresentationDef[] = [
   // ── 1막 응급실 ──
   {
     id: "p_vomit",
     complaint: "구토와 복통",
     vignette: "새벽부터 여러 번 토했고 배가 아프다고 한다.",
     candidates: [
-      { disease: "gastroenteritis", weight: 65 },
-      { disease: "appendicitis", weight: 35 },
+      { disease: "gastroenteritis", weight: 50 },
+      { disease: "appendicitis", weight: 30 },
+      { disease: "pancreatitis", weight: 20 },
     ],
     burden: [30, 34],
     pressure: "pain",
+    vitals: "vt_fever_tachy",
+    course: { opening: ["pain:mild"], weights: { "hemodynamic:moderate": 40, "pain:moderate": 35, "worsening:mild": 25 }, noRepeat: ["worsening:mild"] },
+    medical: { fidelity: "unverified", note: "v2.1: 급성 췌장염 추가. 구토와 윗배 통증은 췌장염의 흔한 첫 모습이고, 리파아제·CT로 가른다. 과음력이 단서" },
   },
   {
     id: "p_wheeze",
     complaint: "숨참",
     vignette: "숨이 차서 말을 끊어 가며 한다.",
     candidates: [
-      { disease: "asthma", weight: 65 },
-      { disease: "cap", weight: 35 },
+      { disease: "asthma", weight: 50 },
+      { disease: "cap", weight: 30 },
+      { disease: "chf", weight: 20 },
     ],
     burden: [30, 34],
     pressure: "respiratory",
+    vitals: "vt_dyspneic",
+    course: basic("respiratory"),
+    medical: { fidelity: "unverified", note: "v2.1: 급성 심부전 악화 추가(심장 천식). 폐부종도 천명음으로 올 수 있고, 수액·β차단제가 해롭다는 점이 천식과 겹쳐 결정이 갈린다. BNP·X선·목정맥으로 가른다" },
   },
   {
     id: "p_fever_easy",
@@ -36,6 +53,9 @@ export const PRESENTATIONS = [
     ],
     burden: [34, 38],
     pressure: "infection",
+    vitals: "vt_fever_tachy",
+    course: basic("infection"),
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_abd_pain",
@@ -48,17 +68,24 @@ export const PRESENTATIONS = [
     ],
     burden: [40, 44],
     pressure: "pain",
+    vitals: "vt_fever_tachy",
+    course: basic("pain", "pain:mild"),
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_fever",
     complaint: "발열과 오한",
     vignette: "열이 나고 온몸이 떨린다.",
     candidates: [
-      { disease: "cap", weight: 55 },
-      { disease: "pyelo", weight: 45 },
+      { disease: "cap", weight: 45 },
+      { disease: "pyelo", weight: 35 },
+      { disease: "cellulitis", weight: 20 },
     ],
     burden: [42, 46],
     pressure: "infection",
+    vitals: "vt_fever_tachy",
+    course: basic("infection"),
+    medical: { fidelity: "unverified", note: "v2.1: 봉와직염 추가. 열의 원인을 찾을 때 피부·연부조직은 놓치기 쉬운 감염원이다. 피부 진찰로 가른다" },
   },
   {
     id: "p_dyspnea",
@@ -71,6 +98,9 @@ export const PRESENTATIONS = [
     ],
     burden: [30, 34],
     pressure: "respiratory",
+    vitals: "vt_dyspneic",
+    course: { weights: { "respiratory:moderate": 40, "respiratory:mild": 25, "worsening:mild": 20, "respiratory:severe": 15 }, noRepeat: ["worsening:mild", "respiratory:severe"] },
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_chest_pain",
@@ -82,13 +112,23 @@ export const PRESENTATIONS = [
     ],
     burden: [64, 70],
     pressure: "cardiac",
+    vitals: "vt_tachy_distress",
+    course: { weights: { "pain:moderate": 40, "hemodynamic:severe": 25, "worsening:mild": 35 }, noRepeat: ["hemodynamic:severe", "worsening:mild"] },
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_focal_neuro",
     complaint: "편측 마비",
     vignette: "한쪽 팔다리에 힘이 빠지고 말이 어눌하다.",
-    candidates: [{ disease: "stroke", weight: 1 }],
+    candidates: [
+      { disease: "stroke", weight: 65 },
+      { disease: "ich", weight: 35 },
+    ],
+    burden: [62, 68],
     pressure: "neuro",
+    vitals: "vt_hypertensive",
+    course: basic("neuro"),
+    medical: { fidelity: "unverified", note: "v2.1: 뇌내출혈 추가. 갑작스러운 편측 마비에서 뇌경색과 뇌출혈은 증상만으로 가를 수 없고 비조영 CT가 결정한다. 혈전용해 전에 CT를 볼지가 실제 결정이 된다" },
   },
   {
     id: "p_dka",
@@ -96,6 +136,7 @@ export const PRESENTATIONS = [
     vignette: "당뇨가 있는 환자가 토하며 깊고 빠르게 숨을 쉰다. 이번 입원의 주 진단이 될 문제다.",
     candidates: [{ disease: "dka", weight: 1 }],
     pressure: "metabolic",
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   // ── 2막 병동 ──
   {
@@ -108,28 +149,39 @@ export const PRESENTATIONS = [
     ],
     burden: [48, 54],
     pressure: "pain",
+    vitals: "vt_lowgrade",
+    course: basic("pain", "complication:mild@3"),
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_confusion",
     complaint: "의식 변화",
     vignette: "보호자가 오늘따라 대답이 엉뚱하다고 한다.",
     candidates: [
-      { disease: "delirium", weight: 55 },
-      { disease: "he", weight: 45 },
+      { disease: "delirium", weight: 45 },
+      { disease: "he", weight: 35 },
+      { disease: "aki", weight: 20 },
     ],
     burden: [36, 40],
     pressure: "neuro",
+    vitals: "vt_calm_confused",
+    course: basic("neuro"),
+    medical: { fidelity: "unverified", note: "v2.1: 급성 신손상(요독성 뇌병증) 추가. 병동 환자의 의식 변화에서 대사성 원인(암모니아·요독)은 섬망과 함께 감별한다. 화학 검사로 가른다" },
   },
   {
     id: "p_ward_dyspnea",
     complaint: "숨참",
     vignette: "병동 간호사가 산소포화도가 떨어진다고 호출했다.",
     candidates: [
-      { disease: "chf", weight: 60 },
-      { disease: "cap", weight: 40 },
+      { disease: "chf", weight: 50 },
+      { disease: "cap", weight: 30 },
+      { disease: "pe", weight: 20 },
     ],
     burden: [48, 54],
     pressure: "respiratory",
+    vitals: "vt_ward_hypox",
+    course: basic("respiratory"),
+    medical: { fidelity: "unverified", note: "v2.1: 폐색전증 추가. 입원 환자의 새 저산소증: 심부전·폐렴·폐색전증은 고전적인 셋이다. 폐가 깨끗한 저산소, 침상 안정력, D-dimer·CT로 가른다" },
   },
   {
     id: "p_diarrhea",
@@ -141,13 +193,28 @@ export const PRESENTATIONS = [
     ],
     burden: [44, 50],
     pressure: "hemodynamic",
+    vitals: "vt_fever_tachy",
+    course: basic("hemodynamic"),
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_palpitation",
     complaint: "두근거림",
-    vignette: "모니터 알람이 울린다. 맥박이 빠르고 불규칙하다.",
-    candidates: [{ disease: "af", weight: 1 }],
+    vignette: "모니터 알람이 울린다. 맥박이 140 가까이 빠르다.",
+    candidates: [
+      { disease: "af", weight: 65 },
+      { disease: "pe", weight: 35 },
+    ],
+    burden: [42, 48],
     pressure: "cardiac",
+    vitals: "vt_palp",
+    course: {
+      opening: ["cardiac:moderate"],
+      rules: [{ when: { all: [{ noCountdown: true }, { turnAtLeast: 2 }] }, sig: "complication:mild@4", once: true }],
+      weights: { "cardiac:moderate": 50, "hemodynamic:mild": 25, "worsening:mild": 25 },
+      noRepeat: ["worsening:mild"],
+    },
+    medical: { fidelity: "unverified", note: "v2.1: 폐색전증 추가. 수술 뒤 병동 환자의 새 빈맥은 심방세동과 폐색전증을 함께 감별한다(폐색전증이 심방세동을 부르기도 한다). 심전도·현장 초음파·D-dimer로 가른다. 둘 다 항응고가 예고(색전)를 막는다" },
   },
   {
     id: "p_sudden_dyspnea",
@@ -159,13 +226,28 @@ export const PRESENTATIONS = [
     ],
     burden: [76, 82],
     pressure: "respiratory",
+    vitals: "vt_tachy_distress",
+    course: { weights: { "respiratory:moderate": 40, "hemodynamic:severe": 30, "worsening:mild": 30 }, noRepeat: ["hemodynamic:severe", "worsening:mild"] },
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_severe_abd",
     complaint: "심한 윗배 통증",
-    vignette: "등까지 뻗치는 통증으로 몸을 웅크리고 있다.",
-    candidates: [{ disease: "pancreatitis", weight: 1 }],
+    vignette: "명치가 찢어질 듯 아프다며 몸을 웅크리고 있다.",
+    candidates: [
+      { disease: "pancreatitis", weight: 70 },
+      { disease: "stemi", weight: 30 },
+    ],
+    burden: [80, 86],
     pressure: "pain",
+    vitals: "vt_epigastric",
+    course: {
+      opening: ["pain:moderate"],
+      rules: [{ when: { all: [{ noCountdown: true }, { turnAtLeast: 2 }] }, sig: "complication:mild@4", once: true }],
+      weights: { "pain:moderate": 45, "pain:mild": 25, "worsening:mild": 30 },
+      noRepeat: ["worsening:mild"],
+    },
+    medical: { fidelity: "unverified", note: "v2.1: ST분절 상승 심근경색 추가. 하벽 심근경색은 명치 통증·구토로 와서 췌장염·위장 질환으로 오인된다(놓치면 안 되는 감별). 심전도·트로포닌·리파아제로 가른다. 예고: 췌장 괴사 / 심실 부정맥" },
   },
   {
     id: "p_hematemesis",
@@ -173,6 +255,7 @@ export const PRESENTATIONS = [
     vignette: "선홍색 피를 한 사발 토했다. 이번 입원의 두 번째 고비다.",
     candidates: [{ disease: "ugib", weight: 1 }],
     pressure: "bleeding",
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   // ── 3막 중환자실 ──
   {
@@ -180,11 +263,15 @@ export const PRESENTATIONS = [
     complaint: "새로 난 열",
     vignette: "중환자실 엿새째, 열이 다시 오른다.",
     candidates: [
-      { disease: "vap", weight: 50 },
-      { disease: "clabsi", weight: 50 },
+      { disease: "vap", weight: 40 },
+      { disease: "clabsi", weight: 40 },
+      { disease: "cdi", weight: 20 },
     ],
     burden: [58, 64],
     pressure: "infection",
+    vitals: "vt_icu_fever",
+    course: basic("infection"),
+    medical: { fidelity: "unverified", note: "v2.1: C. difficile 감염 추가. 중환자실의 새 열: 인공호흡기 폐렴·카테터 혈류감염·C. diff는 병원 감염의 대표 셋이다. 대변 독소로 가른다" },
   },
   {
     id: "p_oliguria",
@@ -196,6 +283,9 @@ export const PRESENTATIONS = [
     ],
     burden: [54, 60],
     pressure: "renal",
+    vitals: "vt_oliguric",
+    course: basic("renal"),
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_hypoxemia",
@@ -208,13 +298,23 @@ export const PRESENTATIONS = [
     ],
     burden: [60, 66],
     pressure: "respiratory",
+    vitals: "vt_severe_hypox",
+    course: basic("respiratory"),
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_bleeding",
     complaint: "출혈",
-    vignette: "주사 자리마다 피가 배어 나온다.",
-    candidates: [{ disease: "dic", weight: 1 }],
+    vignette: "간호사가 피가 멎지 않는다고 호출했다. 혈압이 떨어진다.",
+    candidates: [
+      { disease: "dic", weight: 60 },
+      { disease: "ugib", weight: 40 },
+    ],
+    burden: [58, 64],
     pressure: "bleeding",
+    vitals: "vt_bleeding",
+    course: basic("bleeding"),
+    medical: { fidelity: "unverified", note: "v2.1: 대량 상부위장관 출혈 추가. 중환자실 환자의 새 출혈은 패혈증의 DIC와 스트레스 궤양 출혈을 함께 감별한다. 응고 검사·혈소판·흑색변으로 가른다. 수혈은 둘 다에 듣고, 내시경은 위장관 출혈에만" },
   },
   {
     id: "p_obstructive_shock",
@@ -226,6 +326,9 @@ export const PRESENTATIONS = [
     ],
     burden: [80, 86],
     pressure: "hemodynamic",
+    vitals: "vt_obstructive",
+    course: { opening: ["hemodynamic:moderate"], rules: [{ when: { all: [{ noCountdown: true }, { turnAtLeast: 2 }] }, sig: "complication:mild@3" }], weights: { "hemodynamic:moderate": 55, "worsening:mild": 45 }, noRepeat: ["worsening:mild"] },
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_icu_crash",
@@ -237,6 +340,9 @@ export const PRESENTATIONS = [
     ],
     burden: [78, 84],
     pressure: "respiratory",
+    vitals: "vt_vent_crash",
+    course: { weights: { "respiratory:moderate": 40, "hemodynamic:moderate": 30, "worsening:mild": 30 }, noRepeat: ["worsening:mild"] },
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
   {
     id: "p_septic",
@@ -244,5 +350,6 @@ export const PRESENTATIONS = [
     vignette: "열이 치솟고 혈압이 무너진다. 이번 입원의 마지막 고비다.",
     candidates: [{ disease: "septic_shock", weight: 1 }],
     pressure: "hemodynamic",
+    medical: { fidelity: "unverified", note: "v2.0 신규 내원 양상: 감별 대상과 가중치(흔한 정도), 공통 활력 징후는 v2.1" },
   },
-] satisfies PresentationDef[];
+];

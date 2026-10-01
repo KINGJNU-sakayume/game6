@@ -275,7 +275,7 @@ export const DRUG_CARDS = [
     },
     upgrade: { effects: [pressorChoice(3)] },
     upgradeText: "모든 용량에서 안정화 +3",
-    medical: { fidelity: "accurate", note: "패혈성 쇼크의 1차 승압제. 빈맥성 부정맥" },
+    medical: { fidelity: "unverified", note: "v2.0에서 킥커 선택지·대가 카드가 붙음(v1.1 표시: accurate). 패혈성 쇼크의 1차 승압제. 빈맥성 부정맥" },
   },
   {
     id: "epinephrine",
@@ -291,7 +291,7 @@ export const DRUG_CARDS = [
     drug: { halfLife: 1, sideEffects: [{ card: "arrhythmia", count: 1, dest: "draw_random" }] },
     upgrade: { effects: [epiChoice(4)] },
     upgradeText: "모든 경로에서 질병 부담 감소 +4",
-    medical: { fidelity: "accurate", note: "아나필락시스 1차(근육주사), 심정지 소생. β차단제 복용자는 반응이 약하다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 킥커 선택지·대가 카드가 붙음(v1.1 표시: accurate). 아나필락시스 1차(근육주사), 심정지 소생. β차단제 복용자는 반응이 약하다" },
   },
   // ── 대사·신장 ──
   {
@@ -307,7 +307,7 @@ export const DRUG_CARDS = [
     effects: [dmg(12), purge(["hyperkalemia"], 1), purge(["fluid_overload"])],
     drug: { halfLife: 2, sideEffects: [{ card: "hypokalemia", count: 1, dest: "discard" }] },
     upgrade: { effects: [dmg(16), purge(["hyperkalemia"], 1), purge(["fluid_overload"])] },
-    medical: { fidelity: "accurate", note: "체액 과다(심부전, ARDS의 보수적 수액 전략). 칼륨을 낮춘다. 급성 신손상의 회복을 돕지 않는다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 킥커 선택지·대가 카드가 붙음(v1.1 표시: accurate). 체액 과다(심부전, ARDS의 보수적 수액 전략). 칼륨을 낮춘다. 급성 신손상의 회복을 돕지 않는다" },
   },
   {
     id: "insulin",
@@ -323,7 +323,7 @@ export const DRUG_CARDS = [
     drug: { halfLife: 2, sideEffects: [{ card: "hypoglycemia", count: 1, dest: "draw_random" }] },
     upgrade: { effects: [insulinChoice(5)] },
     upgradeText: "모든 속도에서 질병 부담 감소 +5",
-    medical: { fidelity: "accurate", note: "DKA의 핵심 치료. 칼륨을 세포 안으로 옮겨 혈청 칼륨을 낮춘다(고칼륨혈증 치료에도 쓴다)" },
+    medical: { fidelity: "unverified", note: "v2.0에서 킥커 선택지·대가 카드가 붙음(v1.1 표시: accurate). DKA의 핵심 치료. 칼륨을 세포 안으로 옮겨 혈청 칼륨을 낮춘다(고칼륨혈증 치료에도 쓴다)" },
   },
   {
     id: "kcl",
@@ -354,7 +354,7 @@ export const DRUG_CARDS = [
     drug: { halfLife: 2, sideEffects: [], whileActive: [{ on: "turn_start", effects: [stab(2)] }] },
     upgrade: { effects: [fluidChoice(3)] },
     upgradeText: "모든 속도에서 안정화 +3",
-    medical: { fidelity: "simplified", note: "순환 혈액량 부족에 쓴다. 심부전·ARDS에는 체액 과다를 악화시킨다" },
+    medical: { fidelity: "unverified", note: "v2.0에서 킥커 선택지·대가 카드가 붙음(v1.1 표시: simplified). 순환 혈액량 부족에 쓴다. 심부전·ARDS에는 체액 과다를 악화시킨다" },
   },
   {
     id: "dextrose",

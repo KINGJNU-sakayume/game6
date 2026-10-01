@@ -231,7 +231,7 @@ export const SIDE_EFFECT_CARDS = [
     effects: [],
     sideEffect: { harm: 5, behavior: [{ on: "turn_end", effects: [lose(2)] }], purgeCost: 1 },
     upgrade: {},
-    medical: { fidelity: "stylized", note: "근거가 부족한 채 시행한 침습적 시술의 합병증(출혈, 기흉, 장기 손상)을 한 장으로 묶었다" },
+    medical: { fidelity: "unverified", note: "v2.0 신규(v2.0 표시: stylized). 근거가 부족한 채 시행한 침습적 시술의 합병증(출혈, 기흉, 장기 손상)을 한 장으로 묶었다" },
   },
   {
     id: "fluid_overload",
@@ -245,7 +245,7 @@ export const SIDE_EFFECT_CARDS = [
     effects: [],
     sideEffect: { harm: 4, behavior: [{ on: "turn_end", effects: [{ op: "apply_status", status: "hypoxia", stacks: 1, target: "patient" }] }], purgeCost: 1 },
     upgrade: {},
-    medical: { fidelity: "simplified", note: "과도한 수액은 폐부종과 저산소를 부른다. 이뇨제·투석으로 정리한다" },
+    medical: { fidelity: "unverified", note: "v2.0 신규(v2.0 표시: simplified). 과도한 수액은 폐부종과 저산소를 부른다. 이뇨제·투석으로 정리한다" },
   },
   {
     id: "obsolete_card",

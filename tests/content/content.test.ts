@@ -7,11 +7,11 @@ describe("콘텐츠", () => {
     const r = validateContent(CONTENT);
     expect(r.errors).toEqual([]);
   });
-  it("개수: 카드 57(행동 18·처방집 39) / 질병 27 / 내원 양상 24 / 협진 10 / 유물 17 / 규칙 17", () => {
+  it("개수: 카드 57(행동 18·처방집 39) / 질병 28 / 내원 양상 24 / 협진 10 / 유물 17 / 규칙 17", () => {
     const cards = CONTENT.cards.filter((c) => c.kind !== "side_effect" && c.rarity !== "starter");
     expect(cards).toHaveLength(57);
     expect(cards.filter((c) => c.zone === "formulary")).toHaveLength(39);
-    expect(CONTENT.diseases).toHaveLength(27);
+    expect(CONTENT.diseases).toHaveLength(28);
     expect(CONTENT.presentations).toHaveLength(24);
     expect(CONTENT.consults).toHaveLength(10);
     expect(CONTENT.relics.filter((r) => r.tier !== "special")).toHaveLength(17);
@@ -34,5 +34,19 @@ describe("콘텐츠", () => {
     expect(describeCard("history").full).toBe("하나를 고른다: 발병 양상과 경과 · 동반 증상 · 병력·약물·위험 인자");
     expect(describeCard("saline").options).toContain("적극적 소생 (+1)");
     expect(describeCard("med_order").lines[0]).toContain("처방집");
+  });
+});
+
+describe("v2.1 내원 양상", () => {
+  it("일반·정예 인카운터의 내원 양상은 모두 감별 대상이 둘 이상이고, 단일 대상은 관문·보스뿐이다", () => {
+    for (const e of CONTENT.encounters) {
+      for (const p of e.problems) {
+        const pres = CONTENT.presentations.find((x) => x.id === p.presentation)!;
+        if (e.pool === "gate" || e.pool === "boss") continue;
+        expect(pres.candidates.length, `${e.id}/${pres.id}`).toBeGreaterThanOrEqual(2);
+      }
+    }
+    const single = CONTENT.presentations.filter((p) => p.candidates.length === 1).map((p) => p.id).sort();
+    expect(single).toEqual(["p_dka", "p_hematemesis", "p_septic"]);
   });
 });

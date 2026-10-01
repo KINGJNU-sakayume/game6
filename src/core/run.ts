@@ -3,6 +3,7 @@ import { cardDef, db, diseaseDef, encounterDef, eventDef, hasCard, presentationD
 import { cardTextbook } from "./textbook";
 import { variantDef } from "./disease";
 import { startCombat } from "./combat";
+import { carryOverCultures } from "./micro";
 import { actFloors, generateMap } from "./map";
 import { deriveStream, pickOne, pickWeighted, randInt, randRange, shuffleInPlace } from "./rng";
 import { emit, hasRelic, modifierValue, newUid } from "./util";
@@ -80,6 +81,7 @@ export function newRun(seed: string, options: RunOptions = {}): GameState {
         commitsCorrect: 0,
         revisions: 0,
         commitTurnSum: 0,
+        problemsRevised: 0,
         finalDx: 0,
         finalDxCorrect: 0,
         abxEmpiric: 0,
@@ -192,17 +194,66 @@ export function actDiseases(act: 1 | 2 | 3): string[] {
   return [...out];
 }
 
-export function contextRelevance(state: GameState, id: CardId, acts: (1 | 2 | 3)[]): number {
+function gradePoints(diseaseId: string, def: ReturnType<typeof cardDef>): number {
+  const tb = cardTextbook(diseaseId, def);
+  if (tb.generic || tb.harmful) return 0;
+  return tb.best === "key" ? 3 : tb.best === "weak" ? 2 : tb.best === "normal" ? 1 : 0;
+}
+
+/** 막마다 풀별로 만나는 전투 수의 대략 (지도 구조: 쉬움 2, 일반 5, 정예 2, 관문·보스 1) */
+const POOL_EXPECT: Record<EncounterDef["pool"], number> = { easy: 2, normal: 5, elite: 2, gate: 1, boss: 1 };
+const oddsCache = new WeakMap<object, Map<number, Map<string, number>>>();
+
+/**
+ * 이번 막에서 질병을 만날 기대 횟수: 풀별 전투 수 × 인카운터 비율 × 내원 양상의 감별 대상 비율.
+ * 콘텐츠(교과서 역학)에서 나오는 값이라 플레이어 정보다.
+ */
+export function actDiseaseOdds(act: 1 | 2 | 3): Map<string, number> {
+  const d = db();
+  let byAct = oddsCache.get(d);
+  if (!byAct) {
+    byAct = new Map();
+    oddsCache.set(d, byAct);
+  }
+  const hit = byAct.get(act);
+  if (hit) return hit;
+  const out = new Map<string, number>();
+  for (const pool of Object.keys(POOL_EXPECT) as EncounterDef["pool"][]) {
+    const encs = d.encounters.filter((e) => e.act === act && e.pool === pool);
+    for (const e of encs) {
+      const w = POOL_EXPECT[pool] / encs.length;
+      for (const p of e.problems) {
+        const pres = presentationDef(p.presentation);
+        const tot = pres.candidates.reduce((a, c) => a + c.weight, 0);
+        for (const c of pres.candidates) out.set(c.disease, (out.get(c.disease) ?? 0) + (w * c.weight) / tot);
+      }
+    }
+  }
+  byAct.set(act, out);
+  return out;
+}
+
+/**
+ * 처방집 항목의 쓸모: 만날 가능성으로 가중한 교과서 반응(특효 3 · 우수 2 · 보통 1)의 합 ×10 (정수).
+ * v2.1: v2.0은 막의 질병을 모두 같게 셌다. 드물게 만나는 질병에만 듣는 약이 자주 나와 절반이 쓰이지 않았다.
+ * acts의 두 번째 값(다음 막)은 weights로 비중을 줄 수 있다.
+ */
+export function contextRelevance(state: GameState, id: CardId, acts: (1 | 2 | 3)[], weights?: number[], marginal = false): number {
   const def = cardDef(id);
   let v = 0;
-  const diseases = new Set(acts.flatMap((a) => actDiseases(a)));
-  for (const d of diseases) {
-    const tb = cardTextbook(d, def);
-    if (tb.generic || tb.harmful) continue;
-    if (tb.best === "key") v += 3;
-    else if (tb.best === "weak") v += 2;
-    else if (tb.best === "normal") v += 1;
-  }
+  const owned = marginal ? state.run.formulary.map((c) => cardDef(c.cardId)).filter((c) => c.id !== id) : [];
+  acts.forEach((act, i) => {
+    const share = weights?.[i] ?? 1;
+    for (const [d, odds] of actDiseaseOdds(act)) {
+      const g = gradePoints(d, def);
+      if (g <= 0) continue;
+      // 이미 가진 처방집이 이 질병을 얼마나 덮는가: 더 나을 때만 온전히, 같거나 못하면 1/4만 친다
+      const have = marginal ? Math.max(0, ...owned.map((o) => gradePoints(d, o))) : 0;
+      const gain = marginal ? Math.max(0, g - have) + 0.25 * Math.min(g, have) : g;
+      v += gain * odds * share;
+    }
+  });
+  v = Math.round(v * 10);
   if (v === 0 && def.kind === "drug") {
     // 부작용 관리 약: 가진 약의 부작용을 정리하면 쓸모가 있다
     const purge = new Set<string>();
@@ -251,6 +302,9 @@ function pickSlot(
     /* 정해진 막 */
   } else if (run.act < 3 && (source === "boss" || source === "gate")) acts.splice(0, 1, (run.act + 1) as 2 | 3);
   else if (run.act < 3 && run.floor >= Math.ceil(actFloors(run.act) / 2)) acts.push((run.act + 1) as 2 | 3);
+  // 남은 층만큼 이번 막, 지난 만큼 다음 막에 비중 (이번 막이 끝나 갈수록 다음 막 환자를 본다)
+  const progress = Math.min(1, run.floor / actFloors(run.act));
+  const shares = acts.length > 1 ? [Math.max(0.2, 1 - progress), Math.max(0.3, progress)] : [1];
   const owned = ownedFormulary(state);
   const all = db().cards.filter((c) => offerable(c.id) && !taken.has(c.id));
   let rarityTable = SLOT_RARITY[source][slot];
@@ -265,7 +319,7 @@ function pickSlot(
     else if (slot === "context")
       pool = all
         .filter((c) => zoneOf(c.id) === "formulary" && c.rarity === rarity && !owned.has(c.id))
-        .map((c) => [c.id, contextRelevance(state, c.id, acts)] as [CardId, number])
+        .map((c) => [c.id, contextRelevance(state, c.id, acts, shares, true)] as [CardId, number])
         .filter(([, w]) => w > 0);
     else
       pool = all
@@ -365,6 +419,8 @@ export function finishCombatVictory(state: GameState): void {
     return row;
   });
   emit({ type: "combat_won" });
+  // 아직 배양 중인 검체는 계속 자란다 (결과는 다음 전투에서)
+  carryOverCultures(state);
   state.combat = undefined;
   state.pending = undefined;
   if (kind === "boss" && state.run.act === 3) {
